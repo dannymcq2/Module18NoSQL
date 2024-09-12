@@ -19,7 +19,7 @@ Entering Node index.js on command line to run sever
 
 ## Usage
 
-For more details, refer to the [documentation]().
+For more details, refer to the [documentation](https://drive.google.com/file/d/1eDcYCMFnXorQPDZbqRAzRsz5N52hSMav/view?usp=sharing).
 
     
 
