@@ -111,12 +111,25 @@ function startSession(gameId) {
   nextRound();
 }
 
+// Shuffle a round's answer buttons in place, keeping `correct` pointing at the
+// right option.
+function shuffleOptions(round) {
+  const perm = round.options.map((_, i) => i);
+  for (let i = perm.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [perm[i], perm[j]] = [perm[j], perm[i]];
+  }
+  round.options = perm.map((i) => round.options[i]);
+  round.correct = perm.indexOf(round.correct);
+}
+
 function nextRound() {
   const s = session;
   if (s.round >= ROUNDS_PER_GAME) { endSession(); return; }
   s.round++;
   s.answered = false;
   s.current = s.game.makeRound(s.diff);
+  shuffleOptions(s.current); // vary button positions so answers can't be pattern-matched
 
   $('roundInd').textContent = `Round ${s.round} / ${ROUNDS_PER_GAME}`;
   $('scoreVal').textContent = s.score;
@@ -230,6 +243,9 @@ function endSession() {
 Profile.load();
 renderHome();
 show('home');
+
+// Loudness-match the compression game's clips in the background (offline render).
+AudioEngine.calibrateCompression(GAMES.comp.diffs);
 
 $('homeBtn').addEventListener('click', () => { renderHome(); show('home'); });
 $('quitBtn').addEventListener('click', () => { session = null; renderHome(); show('home'); });

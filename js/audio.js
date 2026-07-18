@@ -19,9 +19,11 @@ const AudioEngine = (() => {
 
   // Pink noise sounds even across the spectrum to human ears — the standard
   // material for EQ training.
+  const PINK_SECONDS = 6; // long buffer so each play can start at a random offset
+
   function getPinkBuffer() {
     if (pinkBuffer) return pinkBuffer;
-    const len = ctx.sampleRate * 2;
+    const len = ctx.sampleRate * PINK_SECONDS;
     pinkBuffer = ctx.createBuffer(2, len, ctx.sampleRate);
     for (let ch = 0; ch < 2; ch++) {
       const data = pinkBuffer.getChannelData(ch);
@@ -86,7 +88,7 @@ const AudioEngine = (() => {
     node.connect(g);
     g.connect(master);
     envelope(g, opts.duration);
-    src.start();
+    src.start(ctx.currentTime, Math.random() * PINK_SECONDS);
     if (opts.duration) src.stop(ctx.currentTime + opts.duration + 0.05);
     current = { stop: () => { try { src.stop(); } catch (e) {} } };
     if (opts.duration) src.onended = () => { if (opts.onended) opts.onended(); };
@@ -105,7 +107,7 @@ const AudioEngine = (() => {
     g.connect(panner);
     panner.connect(master);
     envelope(g, duration);
-    src.start();
+    src.start(ctx.currentTime, Math.random() * PINK_SECONDS);
     src.stop(ctx.currentTime + duration + 0.05);
     src.onended = () => { if (onended) onended(); };
     current = { stop: () => { try { src.stop(); } catch (e) {} } };
@@ -124,7 +126,7 @@ const AudioEngine = (() => {
     g.connect(lvl);
     lvl.connect(master);
     envelope(g, duration);
-    src.start();
+    src.start(ctx.currentTime, Math.random() * PINK_SECONDS);
     src.stop(ctx.currentTime + duration + 0.05);
     src.onended = () => { if (onended) onended(); };
     current = { stop: () => { try { src.stop(); } catch (e) {} } };
@@ -147,7 +149,7 @@ const AudioEngine = (() => {
     f.connect(g);
     g.connect(master);
     envelope(g, duration);
-    src.start();
+    src.start(ctx.currentTime, Math.random() * PINK_SECONDS);
     src.stop(ctx.currentTime + duration + 0.05);
     src.onended = () => { if (onended) onended(); };
     current = { stop: () => { try { src.stop(); } catch (e) {} } };
@@ -198,9 +200,11 @@ const AudioEngine = (() => {
   }
 
   // One-shot percussive voices, scheduled at absolute time t into a destination.
-  function kick(dest, t, vel, sources) {
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
+  // `ac` is the audio context to build on (online ctx live, OfflineAudioContext
+  // during RMS calibration).
+  function kick(ac, dest, t, vel, sources) {
+    const o = ac.createOscillator();
+    const g = ac.createGain();
     o.frequency.setValueAtTime(150, t);
     o.frequency.exponentialRampToValueAtTime(50, t + 0.12);
     g.gain.setValueAtTime(vel, t);
@@ -209,45 +213,92 @@ const AudioEngine = (() => {
     o.start(t); o.stop(t + 0.32);
     sources.push(o);
   }
-  function snare(dest, t, vel, sources) {
-    const s = ctx.createBufferSource();
+  function snare(ac, dest, t, vel, sources) {
+    const s = ac.createBufferSource();
     s.buffer = getPinkBuffer();
-    const hp = ctx.createBiquadFilter();
+    const hp = ac.createBiquadFilter();
     hp.type = 'highpass'; hp.frequency.value = 1400;
-    const g = ctx.createGain();
+    const g = ac.createGain();
     g.gain.setValueAtTime(vel, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
     s.connect(hp); hp.connect(g); g.connect(dest);
-    s.start(t, Math.random()); s.stop(t + 0.2);
+    s.start(t, Math.random() * PINK_SECONDS); s.stop(t + 0.2);
     sources.push(s);
   }
-  function hat(dest, t, vel, sources) {
-    const s = ctx.createBufferSource();
+  function hat(ac, dest, t, vel, sources) {
+    const s = ac.createBufferSource();
     s.buffer = getPinkBuffer();
-    const hp = ctx.createBiquadFilter();
+    const hp = ac.createBiquadFilter();
     hp.type = 'highpass'; hp.frequency.value = 7000;
-    const g = ctx.createGain();
+    const g = ac.createGain();
     g.gain.setValueAtTime(vel, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
     s.connect(hp); hp.connect(g); g.connect(dest);
-    s.start(t, Math.random()); s.stop(t + 0.08);
+    s.start(t, Math.random() * PINK_SECONDS); s.stop(t + 0.08);
     sources.push(s);
   }
 
   // Schedule one 2s bar of a dynamic drum pattern (accents + ghost notes give
   // the compressor something to grab).
-  function scheduleDrumBar(dest, t0, sources) {
+  function scheduleDrumBar(ac, dest, t0, sources) {
     const step = 0.125; // 16th note at 120 BPM
-    kick(dest, t0 + step * 0, 1.0, sources);
-    kick(dest, t0 + step * 3, 0.3, sources);   // ghost
-    kick(dest, t0 + step * 6, 0.9, sources);
-    kick(dest, t0 + step * 10, 1.0, sources);
-    snare(dest, t0 + step * 4, 0.9, sources);
-    snare(dest, t0 + step * 7, 0.25, sources); // ghost
-    snare(dest, t0 + step * 12, 1.0, sources);
+    kick(ac, dest, t0 + step * 0, 1.0, sources);
+    kick(ac, dest, t0 + step * 3, 0.3, sources);   // ghost
+    kick(ac, dest, t0 + step * 6, 0.9, sources);
+    kick(ac, dest, t0 + step * 10, 1.0, sources);
+    snare(ac, dest, t0 + step * 4, 0.9, sources);
+    snare(ac, dest, t0 + step * 7, 0.25, sources); // ghost
+    snare(ac, dest, t0 + step * 12, 1.0, sources);
     for (let i = 0; i < 16; i += 2) {
-      hat(dest, t0 + step * i, i % 4 === 0 ? 0.35 : 0.14, sources);
+      hat(ac, dest, t0 + step * i, i % 4 === 0 ? 0.35 : 0.14, sources);
     }
+  }
+
+  // Build a compressor with makeup on `ac`, returning its input node.
+  function buildCompressor(ac, dest, settings, makeupGain) {
+    const comp = ac.createDynamicsCompressor();
+    comp.threshold.value = settings.threshold;
+    comp.ratio.value = settings.ratio;
+    comp.knee.value = 6;
+    comp.attack.value = 0.003;
+    comp.release.value = 0.15;
+    const makeup = ac.createGain();
+    makeup.gain.value = makeupGain;
+    comp.connect(makeup); makeup.connect(dest);
+    return comp;
+  }
+
+  // Render one drum bar offline and return its RMS, optionally through a
+  // compressor (with unity makeup). Used to loudness-match compressed vs raw.
+  async function renderDrumRMS(settings) {
+    const rate = ctx.sampleRate;
+    const dur = 2.1;
+    const oac = new OfflineAudioContext(2, Math.ceil(rate * dur), rate);
+    const input = settings ? buildCompressor(oac, oac.destination, settings, 1) : oac.destination;
+    scheduleDrumBar(oac, input, 0.02, []);
+    const buf = await oac.startRendering();
+    let sum = 0, n = 0;
+    for (let ch = 0; ch < buf.numberOfChannels; ch++) {
+      const d = buf.getChannelData(ch);
+      for (let i = 0; i < d.length; i++) sum += d[i] * d[i];
+      n += d.length;
+    }
+    return Math.sqrt(sum / n);
+  }
+
+  // For each difficulty, compute the makeup gain that equalizes the compressed
+  // loop's RMS to the raw loop's, so the game tests compression *character*, not
+  // loudness. Mutates each settings object's `makeup` in place.
+  async function calibrateCompression(diffs) {
+    if (typeof OfflineAudioContext === 'undefined') return;
+    ensureCtx();
+    try {
+      const rawRMS = await renderDrumRMS(null);
+      for (const d of diffs) {
+        const compRMS = await renderDrumRMS(d);
+        if (rawRMS > 0 && compRMS > 0) d.makeup = rawRMS / compRMS;
+      }
+    } catch (e) { /* keep the hand-tuned fallback makeup values */ }
   }
 
   // ---- Compression: same drum loop, with or without a compressor + makeup ----
@@ -255,23 +306,11 @@ const AudioEngine = (() => {
     ensureCtx(); stop();
     const out = ctx.createGain();
     out.connect(master);
-    let input = out;
-    if (compressed) {
-      const comp = ctx.createDynamicsCompressor();
-      comp.threshold.value = settings.threshold;
-      comp.ratio.value = settings.ratio;
-      comp.knee.value = 6;
-      comp.attack.value = 0.003;
-      comp.release.value = 0.15;
-      const makeup = ctx.createGain();
-      makeup.gain.value = settings.makeup;
-      comp.connect(makeup); makeup.connect(out);
-      input = comp;
-    }
+    const input = compressed ? buildCompressor(ctx, out, settings, settings.makeup) : out;
     const sources = [];
     const t0 = ctx.currentTime + 0.06;
     for (let start = t0; start < t0 + duration; start += 2.0) {
-      scheduleDrumBar(input, start, sources);
+      scheduleDrumBar(ctx, input, start, sources);
     }
     return finish(sources, [], onended, duration + 0.4);
   }
@@ -368,6 +407,6 @@ const AudioEngine = (() => {
 
   return {
     ensureCtx, stop, playNoiseEQ, playPanned, playLevel, playFiltered, blip,
-    playCompression, playReverb, playDistortion,
+    playCompression, playReverb, playDistortion, calibrateCompression,
   };
 })();

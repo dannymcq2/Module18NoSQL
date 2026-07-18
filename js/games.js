@@ -34,7 +34,10 @@ const GAMES = {
     makeRound(diff) {
       const d = this.diffs[diff];
       const answerIdx = Math.floor(Math.random() * d.bands.length);
-      const freq = d.bands[answerIdx];
+      const band = d.bands[answerIdx];
+      // Jitter the actual boost within ±0.1 octave so the same band sounds a
+      // little different each round (still comfortably within the band).
+      const freq = band * Math.pow(2, (Math.random() - 0.5) * 0.2);
       return {
         prompt: `A +${d.gainDb} dB boost is hiding in the noise. Which frequency is boosted? Compare against the flat reference.`,
         options: d.bands.map(fmtFreq),
@@ -43,7 +46,7 @@ const GAMES = {
           { label: '▶ Boosted', play: (done) => AudioEngine.playNoiseEQ({ freq, gainDb: d.gainDb, q: d.q, duration: 2, onended: done }) },
           { label: '▶ Reference', play: (done) => AudioEngine.playNoiseEQ({ duration: 2, onended: done }) },
         ],
-        explain: `It was ${fmtFreq(freq)}.`,
+        explain: `It was ${fmtFreq(band)}.`,
       };
     },
   },
