@@ -75,6 +75,12 @@ function renderHome() {
       <div class="best">${best != null ? `⭐ Best: ${best} · ${DIFF_NAMES[lvl]}` : `New! Starts on ${DIFF_NAMES[lvl]}`}</div>
     `;
     card.addEventListener('click', () => startSession(g.id));
+    // Cursor-tracking glow (drives the ::before radial via CSS vars)
+    card.addEventListener('mousemove', (e) => {
+      const r = card.getBoundingClientRect();
+      card.style.setProperty('--mx', `${e.clientX - r.left}px`);
+      card.style.setProperty('--my', `${e.clientY - r.top}px`);
+    });
     cards.appendChild(card);
   });
 
@@ -104,6 +110,7 @@ function startSession(gameId) {
     combo: 0,
     bestCombo: 0,
     answered: false,
+    results: [], // per-round true/false for the progress dots
   };
   $('gameTitle').textContent = `${game.icon} ${game.name}`;
   $('diffVal').textContent = DIFF_NAMES[diff];
@@ -123,6 +130,25 @@ function shuffleOptions(round) {
   round.correct = perm.indexOf(round.correct);
 }
 
+function renderDots() {
+  const s = session;
+  const wrap = $('roundDots');
+  wrap.innerHTML = '';
+  for (let i = 0; i < ROUNDS_PER_GAME; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot';
+    if (i < s.results.length) d.classList.add(s.results[i] ? 'hit' : 'miss');
+    else if (i === s.results.length) d.classList.add('now');
+    wrap.appendChild(d);
+  }
+}
+
+function popNumber(el) {
+  el.classList.remove('pop');
+  void el.offsetWidth; // restart the animation
+  el.classList.add('pop');
+}
+
 function nextRound() {
   const s = session;
   if (s.round >= ROUNDS_PER_GAME) { endSession(); return; }
@@ -137,14 +163,15 @@ function nextRound() {
   $('gamePrompt').textContent = s.current.prompt;
   $('feedback').textContent = '';
   $('feedback').className = 'feedback';
+  renderDots();
 
-  // Transport buttons
+  // Transport buttons (with animated EQ-bar indicator while playing)
   const tp = $('transport');
   tp.innerHTML = '';
   s.current.transport.forEach((t) => {
     const b = document.createElement('button');
     b.className = 'play-btn';
-    b.textContent = t.label;
+    b.innerHTML = `<span class="eqviz"><i></i><i></i><i></i><i></i></span><span>${t.label.replace('▶ ', '')}</span>`;
     b.addEventListener('click', () => {
       tp.querySelectorAll('.play-btn').forEach((x) => x.classList.remove('playing'));
       b.classList.add('playing');
@@ -195,10 +222,39 @@ function answer(i, btn) {
     fb.className = 'feedback bad';
   }
   AudioEngine.blip(correct);
+  s.results.push(correct);
+  renderDots();
   $('scoreVal').textContent = s.score;
   $('comboVal').textContent = s.combo;
+  if (correct) { popNumber($('scoreVal')); popNumber($('comboVal')); }
 
   setTimeout(nextRound, 1400);
+}
+
+function countUp(el, target, ms = 900) {
+  const start = performance.now();
+  const tick = (now) => {
+    const p = Math.min(1, (now - start) / ms);
+    const eased = 1 - Math.pow(1 - p, 3);
+    el.textContent = Math.round(target * eased);
+    if (p < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+function burstConfetti(count = 90) {
+  const colors = ['#6366f1', '#8b5cf6', '#22d3ee', '#34d399', '#fbbf24', '#fb7185'];
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('div');
+    p.className = 'confetti-piece';
+    p.style.left = `${Math.random() * 100}vw`;
+    p.style.background = colors[i % colors.length];
+    p.style.animationDuration = `${2 + Math.random() * 2.2}s`;
+    p.style.animationDelay = `${Math.random() * 0.7}s`;
+    p.style.transform = `rotate(${Math.random() * 360}deg)`;
+    document.body.appendChild(p);
+    p.addEventListener('animationend', () => p.remove());
+  }
 }
 
 function endSession() {
@@ -207,6 +263,7 @@ function endSession() {
   Profile.touchStreak();
 
   const xpEarned = Math.round(s.score / 10);
+  const levelBefore = Profile.level();
   Profile.data.xp += xpEarned;
 
   const prevBest = Profile.data.best[s.game.id] || 0;
@@ -227,7 +284,12 @@ function endSession() {
   Profile.save();
 
   $('resultTitle').textContent = accuracy >= 0.8 ? '🏆 Crushed It!' : accuracy >= 0.5 ? 'Workout Complete!' : 'Keep Training!';
-  $('finalScore').textContent = s.score;
+  countUp($('finalScore'), s.score);
+  if (accuracy >= 0.8 || (isBest && prevBest > 0)) burstConfetti();
+  if (Profile.level() > levelBefore) {
+    $('levelBadge').classList.add('bump');
+    setTimeout(() => $('levelBadge').classList.remove('bump'), 600);
+  }
   $('resultLines').innerHTML = [
     `<b>${s.correct} / ${ROUNDS_PER_GAME}</b> correct · best streak <b>${s.bestCombo}</b>`,
     `+<b>${xpEarned} XP</b> earned`,
