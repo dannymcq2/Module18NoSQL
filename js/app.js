@@ -49,6 +49,7 @@ function show(screenId) {
   document.querySelectorAll('.screen').forEach((s) => s.classList.remove('active'));
   $(screenId).classList.add('active');
   AudioEngine.stop();
+  $('game').classList.remove('live');
 }
 
 function renderHeader() {
@@ -95,6 +96,14 @@ function renderHome() {
   renderHeader();
 }
 
+// Per-game console accent colors
+const GAME_ACCENT = {
+  eq: '#22d3ee', pan: '#34d399', level: '#f59e0b', filter: '#a78bfa',
+  comp: '#fb7185', reverb: '#38bdf8', dist: '#f97316', delay: '#c084fc',
+  tone: '#facc15', width: '#4ade80', bass: '#f472b6',
+  balance: '#a3e635', eqmirror: '#38bdf8', compressionist: '#f43f5e',
+};
+
 // ---------- Session ----------
 let session = null;
 
@@ -114,9 +123,13 @@ function startSession(gameId) {
   };
   $('gameTitle').textContent = `${game.icon} ${game.name}`;
   $('diffVal').textContent = DIFF_NAMES[diff];
+  $('game').style.setProperty('--game-accent', GAME_ACCENT[gameId] || '#22d3ee');
   show('game');
   nextRound();
 }
+
+// Toggle the studio "live" animations while audio plays
+function setLive(on) { $('game').classList.toggle('live', on); }
 
 // Shuffle a round's answer buttons in place, keeping `correct` pointing at the
 // right option.
@@ -149,60 +162,217 @@ function popNumber(el) {
   el.classList.add('pop');
 }
 
-function nextRound() {
-  const s = session;
-  if (s.round >= ROUNDS_PER_GAME) { endSession(); return; }
-  s.round++;
-  s.answered = false;
-  s.current = s.game.makeRound(s.diff);
-  shuffleOptions(s.current); // vary button positions so answers can't be pattern-matched
+// Maps a game's semantic answerType to the CSS variable that colors segment
+// hover — kept independent of --game-accent so e.g. frequency answers always
+// hover cyan, pan/width answers always hover green, dB answers always hover
+// amber, regardless of which game you're in.
+const TYPE_HOVER_VAR = {
+  freq: 'var(--type-freq)', pan: 'var(--type-pan)', db: 'var(--type-db)',
+  time: 'var(--type-time)', category: 'var(--type-category)',
+};
 
-  $('roundInd').textContent = `Round ${s.round} / ${ROUNDS_PER_GAME}`;
-  $('scoreVal').textContent = s.score;
-  $('comboVal').textContent = s.combo;
-  $('gamePrompt').textContent = s.current.prompt;
-  $('feedback').textContent = '';
-  $('feedback').className = 'feedback';
-  renderDots();
-
-  // Transport buttons (with animated EQ-bar indicator while playing)
+function buildTransport(s) {
   const tp = $('transport');
   tp.innerHTML = '';
-  s.current.transport.forEach((t) => {
+  (s.current.transport || []).forEach((t) => {
     const b = document.createElement('button');
     b.className = 'play-btn';
     b.innerHTML = `<span class="eqviz"><i></i><i></i><i></i><i></i></span><span>${t.label.replace('▶ ', '')}</span>`;
     b.addEventListener('click', () => {
       tp.querySelectorAll('.play-btn').forEach((x) => x.classList.remove('playing'));
       b.classList.add('playing');
-      t.play(() => b.classList.remove('playing'));
+      setLive(true);
+      t.play(() => { b.classList.remove('playing'); setLive(false); });
     });
     tp.appendChild(b);
   });
-
-  // Answer buttons
-  const ans = $('answers');
-  ans.innerHTML = '';
-  s.current.options.forEach((opt, i) => {
-    const b = document.createElement('button');
-    b.className = 'answer';
-    b.textContent = opt;
-    b.addEventListener('click', () => answer(i, b));
-    ans.appendChild(b);
-  });
+  return tp;
 }
 
-function answer(i, btn) {
+function renderChoiceRound(s) {
+  const disp = $('display');
+  disp.className = 'console-display';
+  disp.innerHTML = '';
+  disp.style.setProperty('--seg-hover', TYPE_HOVER_VAR[s.game.answerType] || 'var(--game-accent)');
+  s.current.options.forEach((opt, i) => {
+    const seg = document.createElement('button');
+    seg.className = 'seg';
+    seg.innerHTML = `<span class="seg-label">${opt}</span>`;
+    seg.addEventListener('click', () => answer(i, seg));
+    disp.appendChild(seg);
+  });
+  buildTransport(s);
+}
+
+function renderFaderRound(s) {
+  const disp = $('display');
+  disp.className = 'console-display fader-bank';
+  disp.innerHTML = '';
+  s.tuneValues = s.current.tracks.map((t) => t.default);
+  s.current.tracks.forEach((t, i) => {
+    const track = document.createElement('div');
+    track.className = 'fader-track';
+    const val = document.createElement('div');
+    val.className = 'fader-val';
+    val.textContent = `${t.default > 0 ? '+' : ''}${t.default} dB`;
+    const input = document.createElement('input');
+    input.type = 'range';
+    input.className = 'fader-input';
+    input.min = t.min; input.max = t.max; input.step = t.step; input.value = t.default;
+    input.addEventListener('input', () => {
+      const v = Number(input.value);
+      s.tuneValues[i] = v;
+      val.textContent = `${v > 0 ? '+' : ''}${v} dB`;
+    });
+    const name = document.createElement('div');
+    name.className = 'fader-name';
+    name.textContent = t.name;
+    track.appendChild(val); track.appendChild(input); track.appendChild(name);
+    disp.appendChild(track);
+  });
+
+  const tp = buildTransport(s);
+  const refBtn = document.createElement('button');
+  refBtn.className = 'play-btn';
+  refBtn.innerHTML = `<span class="eqviz"><i></i><i></i><i></i><i></i></span><span>Reference</span>`;
+  refBtn.addEventListener('click', () => {
+    tp.querySelectorAll('.play-btn').forEach((x) => x.classList.remove('playing'));
+    refBtn.classList.add('playing');
+    setLive(true);
+    s.current.playReference(() => { refBtn.classList.remove('playing'); setLive(false); });
+  });
+  const mixBtn = document.createElement('button');
+  mixBtn.className = 'play-btn';
+  mixBtn.innerHTML = `<span class="eqviz"><i></i><i></i><i></i><i></i></span><span>My Mix</span>`;
+  mixBtn.addEventListener('click', () => {
+    tp.querySelectorAll('.play-btn').forEach((x) => x.classList.remove('playing'));
+    mixBtn.classList.add('playing');
+    setLive(true);
+    s.current.playAttempt(s.tuneValues, () => { mixBtn.classList.remove('playing'); setLive(false); });
+  });
+  tp.appendChild(refBtn); tp.appendChild(mixBtn);
+  addSubmitButton(tp, submitTune);
+}
+
+// Rotary knob control. Drag vertically (up = increase) or use arrow keys
+// while focused. `scale: 'log'` maps drag position onto a log-frequency range.
+function attachKnob(el, valEl, { min, max, scale = 'linear', value, unit, fmt }, onChange) {
+  let val = value;
+  const toNorm = (v) => (scale === 'log' ? Math.log(v / min) / Math.log(max / min) : (v - min) / (max - min));
+  const fromNorm = (n) => {
+    n = Math.min(1, Math.max(0, n));
+    return scale === 'log' ? min * Math.pow(max / min, n) : min + n * (max - min);
+  };
+  const format = fmt || ((v) => `${Math.round(v)}${unit || ''}`);
+  function render() {
+    const n = toNorm(val);
+    el.querySelector('.knob-indicator').style.transform = `rotate(${-135 + n * 270}deg)`;
+    el.style.setProperty('--knob-fill', String(n * 100));
+    valEl.textContent = format(val);
+  }
+  function setValue(v, fire) {
+    val = Math.min(max, Math.max(min, v));
+    render();
+    if (fire !== false && onChange) onChange(val);
+  }
+  let dragging = false, startY = 0, startNorm = 0;
+  el.addEventListener('pointerdown', (e) => {
+    dragging = true; startY = e.clientY; startNorm = toNorm(val);
+    el.setPointerCapture(e.pointerId);
+    el.classList.add('dragging');
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    setValue(fromNorm(startNorm + (startY - e.clientY) / 140));
+  });
+  const endDrag = () => { dragging = false; el.classList.remove('dragging'); };
+  el.addEventListener('pointerup', endDrag);
+  el.addEventListener('pointercancel', endDrag);
+  el.tabIndex = 0;
+  el.addEventListener('keydown', (e) => {
+    const n = toNorm(val);
+    if (e.key === 'ArrowUp' || e.key === 'ArrowRight') { setValue(fromNorm(n + 0.02)); e.preventDefault(); }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') { setValue(fromNorm(n - 0.02)); e.preventDefault(); }
+  });
+  render();
+  return { setValue, getValue: () => val };
+}
+
+function renderKnobRound(s) {
+  const disp = $('display');
+  disp.className = 'console-display knob-panel';
+  disp.innerHTML = `
+    <div class="knob" role="slider" aria-label="value knob"><div class="knob-indicator"></div></div>
+    <div class="knob-val"></div>
+    <div class="knob-hint">Drag up/down or use arrow keys</div>
+  `;
+  const p = s.current.param;
+  const fmt = p.unit === 'Hz' ? (v) => fmtFreq(Math.round(v)) : (v) => `${Math.round(v)}${p.unit}`;
+  s.tuneValue = p.default;
+  s.knobCtl = attachKnob(
+    disp.querySelector('.knob'),
+    disp.querySelector('.knob-val'),
+    { min: p.min, max: p.max, scale: p.scale, value: p.default, unit: p.unit, fmt },
+    (v) => { s.tuneValue = v; }
+  );
+
+  const tp = buildTransport(s);
+  const targetBtn = document.createElement('button');
+  targetBtn.className = 'play-btn';
+  targetBtn.innerHTML = `<span class="eqviz"><i></i><i></i><i></i><i></i></span><span>Target</span>`;
+  targetBtn.addEventListener('click', () => {
+    tp.querySelectorAll('.play-btn').forEach((x) => x.classList.remove('playing'));
+    targetBtn.classList.add('playing');
+    setLive(true);
+    s.current.playTarget(() => { targetBtn.classList.remove('playing'); setLive(false); });
+  });
+  const yoursBtn = document.createElement('button');
+  yoursBtn.className = 'play-btn';
+  yoursBtn.innerHTML = `<span class="eqviz"><i></i><i></i><i></i><i></i></span><span>Yours</span>`;
+  yoursBtn.addEventListener('click', () => {
+    tp.querySelectorAll('.play-btn').forEach((x) => x.classList.remove('playing'));
+    yoursBtn.classList.add('playing');
+    setLive(true);
+    s.current.playYours(s.tuneValue, () => { yoursBtn.classList.remove('playing'); setLive(false); });
+  });
+  tp.appendChild(targetBtn); tp.appendChild(yoursBtn);
+  addSubmitButton(tp, submitTune);
+}
+
+function addSubmitButton(tp, handler) {
+  const btn = document.createElement('button');
+  btn.className = 'primary small';
+  btn.id = 'submitBtn';
+  btn.textContent = 'Submit';
+  btn.addEventListener('click', handler);
+  tp.appendChild(btn);
+}
+
+function nextRound() {
   const s = session;
-  if (s.answered) return;
-  s.answered = true;
-  AudioEngine.stop();
+  if (s.round >= ROUNDS_PER_GAME) { endSession(); return; }
+  s.round++;
+  s.answered = false;
+  s.current = s.game.makeRound(s.diff);
+  if (!s.current.type || s.current.type === 'choice') shuffleOptions(s.current);
 
-  const correct = i === s.current.correct;
-  const buttons = $('answers').querySelectorAll('.answer');
-  buttons.forEach((b) => (b.disabled = true));
-  buttons[s.current.correct].classList.add('correct');
+  $('roundInd').textContent = `${s.round} / ${ROUNDS_PER_GAME}`;
+  $('scoreVal').textContent = s.score;
+  $('comboVal').textContent = s.combo;
+  $('gamePrompt').innerHTML = s.current.prompt;
+  $('feedback').textContent = '';
+  $('feedback').className = 'feedback';
+  renderDots();
 
+  if (s.current.type === 'fader') renderFaderRound(s);
+  else if (s.current.type === 'knob') renderKnobRound(s);
+  else renderChoiceRound(s);
+}
+
+// Shared scoring: both multiple-choice answers and knob/fader submissions
+// route through here so combo, XP, dots, and feedback stay consistent.
+function settleRound(correct, detailMsg) {
+  const s = session;
   Profile.data.totalAnswered++;
   const fb = $('feedback');
   if (correct) {
@@ -213,22 +383,65 @@ function answer(i, btn) {
     // Base 100, +10 per combo step, +25 per difficulty tier
     const pts = 100 + (s.combo - 1) * 10 + s.diff * 25;
     s.score += pts;
-    fb.textContent = `✓ Correct! +${pts}`;
-    fb.className = 'feedback good';
+    fb.innerHTML = `✓ Correct! +${pts}` + (detailMsg ? `<span class="feedback-detail">${detailMsg}</span>` : '');
   } else {
     s.combo = 0;
-    btn.classList.add('wrong');
-    fb.textContent = `✗ ${s.current.explain}`;
-    fb.className = 'feedback bad';
+    fb.innerHTML = `✗ ${detailMsg || 'Not quite.'}`;
   }
+  fb.className = correct ? 'feedback good' : 'feedback bad';
   AudioEngine.blip(correct);
   s.results.push(correct);
   renderDots();
   $('scoreVal').textContent = s.score;
   $('comboVal').textContent = s.combo;
+  document.querySelector('.ch-num.combo').classList.toggle('hot', s.combo >= 3);
   if (correct) { popNumber($('scoreVal')); popNumber($('comboVal')); }
 
-  setTimeout(nextRound, 1400);
+  setTimeout(nextRound, 1600);
+}
+
+function answer(i, btn) {
+  const s = session;
+  if (s.answered) return;
+  s.answered = true;
+  AudioEngine.stop();
+  setLive(false);
+  $('transport').querySelectorAll('.play-btn').forEach((x) => x.classList.remove('playing'));
+
+  const correct = i === s.current.correct;
+  const buttons = $('display').querySelectorAll('.seg');
+  buttons.forEach((b) => (b.disabled = true));
+  buttons[s.current.correct].classList.add('correct');
+  if (!correct) btn.classList.add('wrong');
+
+  settleRound(correct, correct ? null : s.current.explain);
+}
+
+function submitTune() {
+  const s = session;
+  if (s.answered) return;
+  s.answered = true;
+  AudioEngine.stop();
+  setLive(false);
+  $('transport').querySelectorAll('.play-btn').forEach((x) => x.classList.remove('playing'));
+  const submitBtn = $('submitBtn');
+  if (submitBtn) submitBtn.disabled = true;
+  $('display').querySelectorAll('input, .knob').forEach((el) => { el.disabled = true; el.style.pointerEvents = 'none'; });
+
+  let correct, detail;
+  if (s.current.type === 'knob') {
+    const val = s.tuneValue;
+    const err = Math.abs(val - s.current.target);
+    correct = err <= s.current.tolerance;
+    detail = s.current.explain(val, err);
+  } else {
+    const vals = s.tuneValues;
+    const errs = vals.map((v, i) => Math.abs(v - s.current.tracks[i].target));
+    const avgErr = errs.reduce((a, b) => a + b, 0) / errs.length;
+    correct = avgErr <= s.current.tolerance;
+    detail = s.current.explain(vals, avgErr);
+  }
+  settleRound(correct, detail);
 }
 
 function countUp(el, target, ms = 900) {
@@ -308,6 +521,8 @@ show('home');
 
 // Loudness-match the compression game's clips in the background (offline render).
 AudioEngine.calibrateCompression(GAMES.comp.diffs);
+// Pre-render Balance Memory's 4 loopable stems (offline render).
+AudioEngine.prepareMixBuffers();
 
 $('homeBtn').addEventListener('click', () => { renderHome(); show('home'); });
 $('quitBtn').addEventListener('click', () => { session = null; renderHome(); show('home'); });

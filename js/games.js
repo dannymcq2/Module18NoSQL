@@ -34,6 +34,7 @@ const GAMES = {
     id: 'eq',
     icon: '🎚️',
     name: 'EQ Detective',
+    answerType: 'freq',
     desc: 'One frequency band boosted in noise or a drum loop. Identify which band — the core skill for mixing and mastering.',
     allBands: [63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000],
     diffs: [
@@ -73,6 +74,7 @@ const GAMES = {
     id: 'pan',
     icon: '🎛️',
     name: 'Pan Precision',
+    answerType: 'pan',
     desc: 'A sound placed somewhere in the stereo field. Pinpoint its position — train your spatial hearing.',
     diffs: [
       { positions: [-1, 0, 1] },
@@ -107,6 +109,7 @@ const GAMES = {
     id: 'level',
     icon: '🔊',
     name: 'dB Boss',
+    answerType: 'db',
     desc: 'Two clips, one slightly louder. Pick the louder one — level judgment is the foundation of gain staging.',
     diffs: [
       { deltaDb: 6 },
@@ -145,6 +148,7 @@ const GAMES = {
     id: 'filter',
     icon: '🧪',
     name: 'Filter Lab',
+    answerType: 'category',
     desc: 'A mystery filter over noise or drums. Name the filter type — learn the sound of every curve.',
     diffs: [
       { types: ['lowpass', 'highpass'] },
@@ -178,6 +182,7 @@ const GAMES = {
     id: 'comp',
     icon: '🥁',
     name: 'Squash Test',
+    answerType: 'category',
     desc: 'Two drum loops, one run through a compressor. Spot the squashed one — hear how compression tames transients.',
     diffs: [
       { threshold: -35, ratio: 12, makeup: 1.8 },
@@ -208,6 +213,7 @@ const GAMES = {
     id: 'reverb',
     icon: '🏛️',
     name: 'Space Cadet',
+    answerType: 'category',
     desc: 'A percussive hit in a mystery space. Judge the size of the reverb, from a dry room to a cathedral.',
     presets: [
       { name: 'Dry', decay: 0 },
@@ -245,6 +251,7 @@ const GAMES = {
     id: 'dist',
     icon: '🎸',
     name: 'Dirt Meter',
+    answerType: 'category',
     desc: 'A synth riff with mystery drive. Gauge how much distortion is cooking — clean, crunchy, or fully fried.',
     presets: [
       { name: 'Clean', amount: 0, out: 0.5 },
@@ -285,6 +292,7 @@ const GAMES = {
     id: 'delay',
     icon: '🕰️',
     name: 'Delay Control',
+    answerType: 'time',
     desc: 'A repeat echoes behind the sound. Estimate the delay time in milliseconds using the dry/delayed comparison.',
     diffs: [
       [90, 250, 500],
@@ -315,6 +323,7 @@ const GAMES = {
     id: 'tone',
     icon: '📢',
     name: 'Feedback Eliminator',
+    answerType: 'freq',
     desc: 'A pure sine tone rings out at one frequency. Pin down which frequency it is — the skill for killing feedback fast.',
     allBands: [80, 160, 250, 400, 630, 1000, 1600, 2500, 4000, 6300, 10000],
     diffs: [
@@ -344,6 +353,7 @@ const GAMES = {
     id: 'width',
     icon: '🔀',
     name: 'Stereohead',
+    answerType: 'pan',
     desc: 'Two sources spread across the stereo field. Judge how wide the image is, from mono to fully wide.',
     presets: [
       { name: 'Mono', w: 0 },
@@ -379,6 +389,7 @@ const GAMES = {
     id: 'bass',
     icon: '🔈',
     name: 'Bass Detective',
+    answerType: 'freq',
     desc: 'A boost hides down in the low end (50–400 Hz). Track down the boosted frequency where mixes get muddy.',
     allBands: [50, 63, 80, 100, 125, 160, 200, 250, 315, 400],
     diffs: [
@@ -405,6 +416,100 @@ const GAMES = {
           { label: '▶ Reference', play: (done) => AudioEngine.playNoiseEQ({ duration: 2, src, onended: done }) },
         ],
         explain: `It was ${fmtFreq(band)}.`,
+      };
+    },
+  },
+
+  // ---- Balance Memory: memorize and recreate a 4-track fader mix ----
+  balance: {
+    id: 'balance',
+    icon: '🎚️',
+    name: 'Balance Memory',
+    desc: 'Memorize a 4-track mix, then recreate the balance on the faders from memory. Train your relative-level recall.',
+    answerType: 'db',
+    trackNames: ['Kick', 'Bass', 'Pad', 'Hats'],
+    diffs: [
+      { range: 8, tolerance: 2.5 },
+      { range: 12, tolerance: 2 },
+      { range: 16, tolerance: 1.5 },
+      { range: 20, tolerance: 1 },
+    ],
+    makeRound(diff) {
+      const d = this.diffs[diff];
+      const targets = this.trackNames.map(() => Math.round(Math.random() * d.range - d.range / 2));
+      const tracks = this.trackNames.map((name, i) => ({ name, min: -18, max: 6, step: 1, default: 0, target: targets[i] }));
+      return {
+        type: 'fader',
+        prompt: 'Listen to the <b>reference mix</b>, then recreate the balance on the faders below. Use "Play My Mix" to check your work before submitting.',
+        tracks,
+        tolerance: d.tolerance,
+        playReference: (done) => AudioEngine.playMixSnapshot(targets, 2.4, done),
+        playAttempt: (vals, done) => AudioEngine.playMixSnapshot(vals, 2.4, done),
+        explain: (vals, avgErr) => `Avg error ${avgErr.toFixed(1)} dB — target was ${tracks.map((t) => `${t.name} ${t.target > 0 ? '+' : ''}${t.target}`).join(', ')}.`,
+      };
+    },
+  },
+
+  // ---- EQ Mirror: dial in a frequency knob to match a hidden EQ boost ----
+  eqmirror: {
+    id: 'eqmirror',
+    icon: '🪞',
+    name: 'EQ Mirror',
+    desc: 'Drag the knob to match a hidden EQ boost by ear — a continuous, precision version of EQ Detective.',
+    answerType: 'freq',
+    diffs: [
+      { gainDb: 10, tolerancePct: 18, range: [150, 5000] },
+      { gainDb: 8, tolerancePct: 13, range: [120, 6500] },
+      { gainDb: 6, tolerancePct: 9, range: [100, 8000] },
+      { gainDb: 5, tolerancePct: 6, range: [80, 9000] },
+    ],
+    makeRound(diff) {
+      const d = this.diffs[diff];
+      const [lo, hi] = d.range;
+      const target = Math.round(lo * Math.pow(hi / lo, Math.random()));
+      const src = Math.random() < 0.6
+        ? { kind: 'pink' }
+        : { kind: 'drums', pattern: Math.floor(Math.random() * AudioEngine.DRUM_PATTERNS.length) };
+      const tolerance = target * d.tolerancePct / 100;
+      return {
+        type: 'knob',
+        prompt: `A +${d.gainDb} dB peak is hidden in ${MATERIAL_NAMES[src.kind]}. Drag the knob, then compare <b>Target</b> vs <b>Yours</b> until they match.`,
+        param: { min: lo, max: hi, scale: 'log', unit: 'Hz', default: Math.round(Math.sqrt(lo * hi)) },
+        target,
+        tolerance,
+        playTarget: (done) => AudioEngine.playNoiseEQ({ freq: target, gainDb: d.gainDb, q: 2, duration: 1.8, src, onended: done }),
+        playYours: (val, done) => AudioEngine.playNoiseEQ({ freq: val, gainDb: d.gainDb, q: 2, duration: 1.8, src, onended: done }),
+        explain: (val, err) => `Target was ${fmtFreq(target)}, you dialed ${fmtFreq(Math.round(val))} (off by ${fmtFreq(Math.round(err))}).`,
+      };
+    },
+  },
+
+  // ---- Compressionist: dial in an Amount knob to match hidden compression ----
+  compressionist: {
+    id: 'compressionist',
+    icon: '🎛️',
+    name: 'Compressionist',
+    desc: 'Drag the Amount knob to match a hidden compression setting on a drum loop — precision dynamics matching.',
+    answerType: 'db',
+    diffs: [
+      { tolerance: 18 },
+      { tolerance: 13 },
+      { tolerance: 9 },
+      { tolerance: 6 },
+    ],
+    makeRound(diff) {
+      const tolerance = this.diffs[diff].tolerance;
+      const target = Math.round(15 + Math.random() * 80);
+      const pattern = Math.floor(Math.random() * AudioEngine.DRUM_PATTERNS.length);
+      return {
+        type: 'knob',
+        prompt: 'Drag the <b>Amount</b> knob to match the hidden compression — listen for tamed transients and evened-out levels.',
+        param: { min: 0, max: 100, scale: 'linear', unit: '%', default: 50 },
+        target,
+        tolerance,
+        playTarget: (done) => AudioEngine.playCompressAmount(target, pattern, 2.4, done),
+        playYours: (val, done) => AudioEngine.playCompressAmount(val, pattern, 2.4, done),
+        explain: (val, err) => `Target was ${target}%, you dialed ${Math.round(val)}% (off by ${Math.round(err)}).`,
       };
     },
   },

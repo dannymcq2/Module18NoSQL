@@ -19,6 +19,9 @@ A SoundGym-style ear training web app for producers and audio engineers. All sou
 | 📢 **Feedback Eliminator** | Pin down the frequency of a ringing pure tone |
 | 🔀 **Stereohead** | Judge how wide the stereo image is, from mono to fully wide |
 | 🔈 **Bass Detective** | Find the boosted frequency down in the low end (50–400 Hz) |
+| 🎚️ **Balance Memory** | Memorize a 4-track mix, then recreate it by dragging faders |
+| 🪞 **EQ Mirror** | Drag a frequency knob to match a hidden EQ boost, A/B'd against your own attempt |
+| 🎛️ **Compressionist** | Drag an Amount knob to match hidden compression by ear |
 
 ## Progression
 
@@ -29,11 +32,16 @@ A SoundGym-style ear training web app for producers and audio engineers. All sou
 
 ## Interface
 
-Each game plays out on a **mixing-console UI** — a segmented frequency/pan/dB scale you click to answer, a SCORE / STAGE / STREAK readout, and an animated studio illustration (speakers, VU meters, faders, engineer) that comes alive while audio plays. Every game has its own accent color.
+Each game plays out on a **mixing-console UI**, in one of three interaction styles depending on the skill being trained:
+- **Segmented scale** (most games) — click a frequency/pan/dB option to answer. Hover color is semantic and consistent across games: frequency options always glow cyan, pan/width options green, dB/level options amber, delay-time options violet, and qualitative options (filter type, reverb size, distortion amount) rose — so the color itself tells you what kind of judgment you're making.
+- **Vertical faders** (Balance Memory) — drag real fader tracks to recreate a memorized multi-track mix.
+- **Rotary knob** (EQ Mirror, Compressionist) — drag up/down or use arrow keys to dial in a continuous value, A/B your attempt against the target, and submit when it matches.
+
+All three sit above a SCORE / STAGE / STREAK readout and an animated studio illustration (speakers, VU meters, faders, engineer) that comes alive while audio plays. Every game has its own accent color for its console and studio scene.
 
 ## Tech
 
-Vanilla HTML/CSS/JS. Pink noise is generated with the Paul Kellet filter method; EQ, filters, panning, level, compression, reverb (convolution), distortion (waveshaping), delay, and stereo width all use native Web Audio nodes. The studio scene is inline SVG animated with CSS. Progress persists in `localStorage`.
+Vanilla HTML/CSS/JS. Pink noise is generated with the Paul Kellet filter method; EQ, filters, panning, level, compression, reverb (convolution), distortion (waveshaping), delay, and stereo width all use native Web Audio nodes. Balance Memory's 4 stems (kick/bass/pad/hats) are pre-rendered once via `OfflineAudioContext` into loopable buffers. The studio scene is inline SVG animated with CSS. Progress persists in `localStorage`.
 
 ## Also in this repo
 

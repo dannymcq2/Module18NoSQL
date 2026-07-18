@@ -568,10 +568,117 @@ const AudioEngine = (() => {
     return finish(sources, [], onended, duration + 0.1);
   }
 
+  // ---------- Balance Memory: 4 loopable track buffers, snapshot mixdown ----------
+  let mixBuffers = null;
+
+  async function renderLoop(scheduleFn, duration) {
+    const rate = ctx.sampleRate;
+    const oac = new OfflineAudioContext(2, Math.ceil(rate * duration), rate);
+    scheduleFn(oac, oac.destination);
+    return oac.startRendering();
+  }
+
+  // Precompute the 4 loopable stems used by Balance Memory. Safe to call
+  // repeatedly; only renders once.
+  async function prepareMixBuffers() {
+    if (mixBuffers) return mixBuffers;
+    ensureCtx();
+    const dur = 2.0;
+    try {
+      const [kickBuf, bassBuf, padBuf, hatsBuf] = await Promise.all([
+        renderLoop((ac, dest) => {
+          const s = [];
+          kick(ac, dest, 0, 1.0, s);
+          kick(ac, dest, 1.0, 0.9, s);
+        }, dur),
+        renderLoop((ac, dest) => {
+          [[0, 55], [1.0, 73.42]].forEach(([t, f]) => {
+            const o = ac.createOscillator();
+            o.type = 'triangle'; o.frequency.value = f;
+            const g = ac.createGain();
+            g.gain.setValueAtTime(0, t);
+            g.gain.linearRampToValueAtTime(0.6, t + 0.02);
+            g.gain.setValueAtTime(0.6, t + 0.9);
+            g.gain.linearRampToValueAtTime(0, t + 0.98);
+            o.connect(g); g.connect(dest);
+            o.start(t); o.stop(t + 1.0);
+          });
+        }, dur),
+        renderLoop((ac, dest) => {
+          const root = 110;
+          const lp = ac.createBiquadFilter();
+          lp.type = 'lowpass'; lp.frequency.value = 2200; lp.Q.value = 0.5;
+          const g = ac.createGain();
+          g.gain.value = 0.14;
+          lp.connect(g); g.connect(dest);
+          [1, 1.4983, 2].forEach((ratio) => {
+            const o = ac.createOscillator();
+            o.type = 'sawtooth'; o.frequency.value = root * ratio;
+            o.connect(lp);
+            o.start(0); o.stop(dur);
+          });
+        }, dur),
+        renderLoop((ac, dest) => {
+          const s = [];
+          for (let i = 0; i < 8; i++) hat(ac, dest, i * 0.25, 0.3, s);
+        }, dur),
+      ]);
+      mixBuffers = { kick: kickBuf, bass: bassBuf, pad: padBuf, hats: hatsBuf };
+    } catch (e) { /* Balance Memory will no-op playback if this never resolves */ }
+    return mixBuffers;
+  }
+
+  // Play the 4 stems together at the given per-track dB gains (order:
+  // kick, bass, pad, hats). Used for both the memorized reference and the
+  // player's attempt — same function, different gain arrays.
+  function playMixSnapshot(gainsDb, duration = 2.4, onended) {
+    ensureCtx(); stop();
+    if (!mixBuffers) { if (onended) onended(); return { stop() {} }; }
+    const names = ['kick', 'bass', 'pad', 'hats'];
+    const sources = [];
+    const t0 = ctx.currentTime + 0.05;
+    names.forEach((n, i) => {
+      const src = ctx.createBufferSource();
+      src.buffer = mixBuffers[n];
+      src.loop = true;
+      const g = ctx.createGain();
+      g.gain.value = Math.pow(10, (gainsDb[i] || 0) / 20);
+      src.connect(g); g.connect(master);
+      src.start(t0); src.stop(t0 + duration + 0.05);
+      sources.push(src);
+    });
+    return finish(sources, [], onended, duration + 0.1);
+  }
+
+  // ---------- Compressionist: single "Amount" knob (0-100) mapped to a
+  // threshold/ratio pair, with an approximate makeup-gain compensation ----------
+  function amountToCompSettings(amount) {
+    const threshold = -8 - (amount / 100) * 30; // -8 .. -38 dB
+    const ratio = 1 + (amount / 100) * 11;       // 1 .. 12
+    const grEstimate = Math.max(0, (-6 - threshold)) * (1 - 1 / ratio);
+    const makeup = Math.pow(10, (grEstimate * 0.75) / 20);
+    return { threshold, ratio, makeup };
+  }
+
+  function playCompressAmount(amount, patternIdx, duration = 2.4, onended) {
+    ensureCtx(); stop();
+    const settings = amountToCompSettings(amount);
+    const out = ctx.createGain();
+    out.connect(master);
+    const input = amount > 2 ? buildCompressor(ctx, out, settings, settings.makeup) : out;
+    const sources = [];
+    const t0 = ctx.currentTime + 0.06;
+    for (let start = t0; start < t0 + duration; start += 2.0) {
+      scheduleDrumBar(ctx, input, start, sources, patternIdx);
+    }
+    return finish(sources, [], onended, duration + 0.4);
+  }
+
   return {
     ensureCtx, stop, playNoiseEQ, playPanned, playLevel, playFiltered, blip,
     playCompression, playReverb, playDistortion, calibrateCompression,
     playDelay, playTone, playWidth,
+    prepareMixBuffers, playMixSnapshot, playCompressAmount,
     DRUM_PATTERNS, RIFFS, HIT_KINDS,
   };
 })();

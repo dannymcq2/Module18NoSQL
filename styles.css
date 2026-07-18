@@ -17,6 +17,16 @@
   --radius: 18px;
   --shadow: 0 10px 34px rgba(0, 0, 0, 0.4);
   --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Answer-type hover colors — semantic, independent of per-game accent.
+     Frequency, pan/width, dB/level, delay time, and qualitative-category
+     answers each get a distinct hover color so the interaction itself
+     signals what kind of judgment you're making. */
+  --type-freq: #22d3ee;
+  --type-pan: #34d399;
+  --type-db: #f59e0b;
+  --type-time: #c084fc;
+  --type-category: #fb7185;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -300,10 +310,10 @@ h2 { font-size: 19px; letter-spacing: -0.3px; margin: 40px 0 16px; color: var(--
   transform: translateX(-50%);
 }
 .seg:hover:not(:disabled) {
-  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--game-accent) 22%, transparent));
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--seg-hover, var(--game-accent)) 22%, transparent));
   color: var(--text);
 }
-.seg:hover:not(:disabled)::before { background: var(--game-accent); box-shadow: 0 0 12px var(--game-accent); }
+.seg:hover:not(:disabled)::before { background: var(--seg-hover, var(--game-accent)); box-shadow: 0 0 12px var(--seg-hover, var(--game-accent)); }
 .seg:disabled { cursor: default; }
 .seg.correct {
   background: linear-gradient(180deg, transparent, rgba(52, 211, 153, 0.32));
@@ -390,10 +400,70 @@ h2 { font-size: 19px; letter-spacing: -0.3px; margin: 40px 0 16px; color: var(--
 
 .prompt { font-size: 15.5px; margin: 20px 0 8px; line-height: 1.55; max-width: 680px; color: var(--muted); }
 .prompt b { color: var(--text); }
-.feedback { min-height: 28px; font-weight: 750; font-size: 16px; }
+.feedback { min-height: 46px; font-weight: 750; font-size: 16px; }
 .feedback.good { color: var(--good); animation: feedbackIn 0.35s var(--ease-pop); }
 .feedback.bad { color: var(--bad); animation: feedbackIn 0.35s var(--ease-pop); }
 @keyframes feedbackIn { from { opacity: 0; transform: translateY(6px) scale(0.95); } }
+.feedback-detail { display: block; font-size: 13px; color: var(--muted); font-weight: 600; margin-top: 4px; }
+
+/* ---- Fader bank (Balance Memory) ---- */
+.fader-bank { display: flex; justify-content: center; align-items: flex-end; gap: 30px; padding: 18px 20px 10px; min-height: 190px; flex-wrap: wrap; }
+.fader-track { display: flex; flex-direction: column; align-items: center; gap: 9px; }
+.fader-val { font-size: 12.5px; font-weight: 750; color: var(--text); font-variant-numeric: tabular-nums; min-width: 48px; text-align: center; }
+.fader-input {
+  writing-mode: vertical-lr;
+  direction: rtl;
+  -webkit-appearance: slider-vertical;
+  width: 28px;
+  height: 140px;
+  accent-color: var(--game-accent);
+  background: transparent;
+  cursor: pointer;
+}
+.fader-name { font-size: 11.5px; color: var(--muted); font-weight: 650; letter-spacing: 0.3px; }
+
+/* ---- Knob panel (EQ Mirror / Compressionist) ---- */
+.knob-panel { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 26px 20px; min-height: 190px; }
+.knob {
+  --knob-fill: 0;
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #232b40, #0d1119 70%);
+  border: 2px solid var(--border-strong);
+  position: relative;
+  cursor: grab;
+  touch-action: none;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5), 0 0 0 6px rgba(255, 255, 255, 0.02);
+}
+.knob:focus-visible { outline: 2px solid var(--game-accent); outline-offset: 4px; }
+.knob.dragging { cursor: grabbing; }
+.knob::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: conic-gradient(var(--game-accent) calc(var(--knob-fill) * 2.7deg), transparent 0deg);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
+  opacity: 0.85;
+}
+.knob-indicator {
+  position: absolute;
+  left: 50%;
+  top: 10px;
+  width: 3px;
+  height: 34px;
+  background: var(--game-accent);
+  border-radius: 2px;
+  transform-origin: 50% 42px;
+  box-shadow: 0 0 8px var(--game-accent);
+  margin-left: -1.5px;
+}
+.knob-val { font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.knob-hint { font-size: 11.5px; color: var(--muted); }
+
+.primary.small { padding: 10px 18px; font-size: 13.5px; border-radius: 10px; min-width: 104px; }
 
 /* ---- Animated studio illustration ---- */
 .studio-wrap {
