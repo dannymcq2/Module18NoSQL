@@ -1,6 +1,8 @@
 // Game definitions. Each game produces rounds; a round has:
 //   prompt, transport buttons (play actions), answer options, correct index.
 // Difficulty scales with the player's per-game level (0-3).
+// Every round draws random material (noise / pad / drum pattern / riff) from
+// the AudioEngine palette so no two rounds sound alike.
 
 const DIFF_NAMES = ['Easy', 'Medium', 'Hard', 'Pro'];
 const ROUNDS_PER_GAME = 10;
@@ -16,7 +18,15 @@ function shuffle(arr) {
 
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
+// Sample n distinct items from arr (order preserved from arr)
+function sample(arr, n) {
+  const idx = shuffle(arr.map((_, i) => i)).slice(0, n).sort((a, b) => a - b);
+  return idx.map((i) => arr[i]);
+}
+
 function fmtFreq(f) { return f >= 1000 ? (f / 1000).toFixed(f % 1000 === 0 ? 0 : 1) + ' kHz' : f + ' Hz'; }
+
+const MATERIAL_NAMES = { pink: 'noise', white: 'bright noise', pad: 'a synth pad', drums: 'a drum loop' };
 
 const GAMES = {
   // ---- EQ Detective: which frequency band is boosted? ----
@@ -24,27 +34,34 @@ const GAMES = {
     id: 'eq',
     icon: '🎚️',
     name: 'EQ Detective',
-    desc: 'Pink noise with one frequency band boosted. Identify which band it is — the core skill for mixing and mastering.',
+    desc: 'One frequency band boosted in noise or a drum loop. Identify which band — the core skill for mixing and mastering.',
+    allBands: [63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000],
     diffs: [
-      { bands: [125, 500, 2000, 8000], gainDb: 12, q: 1.5 },
-      { bands: [125, 250, 1000, 4000, 8000], gainDb: 9, q: 2 },
-      { bands: [125, 250, 500, 1000, 2000, 4000, 8000], gainDb: 6, q: 2 },
-      { bands: [63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000], gainDb: 4.5, q: 2.5 },
+      { count: 4, gainDb: 12, q: 1.5 },
+      { count: 5, gainDb: 9, q: 2 },
+      { count: 7, gainDb: 6, q: 2 },
+      { count: 9, gainDb: 4.5, q: 2.5 },
     ],
     makeRound(diff) {
       const d = this.diffs[diff];
-      const answerIdx = Math.floor(Math.random() * d.bands.length);
-      const band = d.bands[answerIdx];
+      // Random band subset each round, so the options themselves vary
+      const bands = sample(this.allBands, d.count);
+      const answerIdx = Math.floor(Math.random() * bands.length);
+      const band = bands[answerIdx];
       // Jitter the actual boost within ±0.1 octave so the same band sounds a
       // little different each round (still comfortably within the band).
       const freq = band * Math.pow(2, (Math.random() - 0.5) * 0.2);
+      // Random material; boosted and reference must share the same material
+      const src = Math.random() < 0.55
+        ? { kind: 'pink' }
+        : { kind: 'drums', pattern: Math.floor(Math.random() * AudioEngine.DRUM_PATTERNS.length) };
       return {
-        prompt: `A +${d.gainDb} dB boost is hiding in the noise. Which frequency is boosted? Compare against the flat reference.`,
-        options: d.bands.map(fmtFreq),
+        prompt: `A +${d.gainDb} dB boost is hiding in ${MATERIAL_NAMES[src.kind]}. Which frequency is boosted? Compare against the flat reference.`,
+        options: bands.map(fmtFreq),
         correct: answerIdx,
         transport: [
-          { label: '▶ Boosted', play: (done) => AudioEngine.playNoiseEQ({ freq, gainDb: d.gainDb, q: d.q, duration: 2, onended: done }) },
-          { label: '▶ Reference', play: (done) => AudioEngine.playNoiseEQ({ duration: 2, onended: done }) },
+          { label: '▶ Boosted', play: (done) => AudioEngine.playNoiseEQ({ freq, gainDb: d.gainDb, q: d.q, duration: 2, src, onended: done }) },
+          { label: '▶ Reference', play: (done) => AudioEngine.playNoiseEQ({ duration: 2, src, onended: done }) },
         ],
         explain: `It was ${fmtFreq(band)}.`,
       };
@@ -56,7 +73,7 @@ const GAMES = {
     id: 'pan',
     icon: '🎛️',
     name: 'Pan Precision',
-    desc: 'A noise burst placed somewhere in the stereo field. Pinpoint its position — train your spatial hearing.',
+    desc: 'A sound placed somewhere in the stereo field. Pinpoint its position — train your spatial hearing.',
     diffs: [
       { positions: [-1, 0, 1] },
       { positions: [-1, -0.5, 0, 0.5, 1] },
@@ -72,12 +89,13 @@ const GAMES = {
       const d = this.diffs[diff];
       const answerIdx = Math.floor(Math.random() * d.positions.length);
       const panVal = d.positions[answerIdx];
+      const src = pick([{ kind: 'pink' }, { kind: 'white' }, { kind: 'pad' }]);
       return {
         prompt: 'Where in the stereo field is the sound placed? (Use headphones for best results.)',
         options: d.positions.map((p) => this.label(p)),
         correct: answerIdx,
         transport: [
-          { label: '▶ Play Sound', play: (done) => AudioEngine.playPanned(panVal, 1.2, done) },
+          { label: '▶ Play Sound', play: (done) => AudioEngine.playPanned(panVal, 1.2, done, src) },
         ],
         explain: `It was panned ${this.label(panVal)}.`,
       };
@@ -98,16 +116,24 @@ const GAMES = {
     ],
     makeRound(diff) {
       const d = this.diffs[diff];
+      // Jitter the gap ±20% so it isn't the identical delta every round
+      const delta = +(d.deltaDb * (0.8 + Math.random() * 0.4)).toFixed(1);
       const louderIsA = Math.random() < 0.5;
-      const a = louderIsA ? 0 : -d.deltaDb;
-      const b = louderIsA ? -d.deltaDb : 0;
+      const a = louderIsA ? 0 : -delta;
+      const b = louderIsA ? -delta : 0;
+      // Both clips must share material to keep it a pure level comparison
+      const src = pick([
+        { kind: 'pink' },
+        { kind: 'white' },
+        { kind: 'pad', root: 82 * Math.pow(2, Math.random() * 1.3) },
+      ]);
       return {
-        prompt: `One clip is ${d.deltaDb} dB louder than the other. Which one?`,
+        prompt: `One clip is ${delta} dB louder than the other. Which one?`,
         options: ['Clip A', 'Clip B'],
         correct: louderIsA ? 0 : 1,
         transport: [
-          { label: '▶ Clip A', play: (done) => AudioEngine.playLevel(a, 1.0, done) },
-          { label: '▶ Clip B', play: (done) => AudioEngine.playLevel(b, 1.0, done) },
+          { label: '▶ Clip A', play: (done) => AudioEngine.playLevel(a, 1.0, done, src) },
+          { label: '▶ Clip B', play: (done) => AudioEngine.playLevel(b, 1.0, done, src) },
         ],
         explain: `Clip ${louderIsA ? 'A' : 'B'} was louder.`,
       };
@@ -119,7 +145,7 @@ const GAMES = {
     id: 'filter',
     icon: '🧪',
     name: 'Filter Lab',
-    desc: 'Noise runs through a mystery filter. Name the filter type — learn the sound of every curve.',
+    desc: 'A mystery filter over noise or drums. Name the filter type — learn the sound of every curve.',
     diffs: [
       { types: ['lowpass', 'highpass'] },
       { types: ['lowpass', 'highpass', 'bandpass'] },
@@ -131,13 +157,16 @@ const GAMES = {
       const d = this.diffs[diff];
       const answerIdx = Math.floor(Math.random() * d.types.length);
       const type = d.types[answerIdx];
+      const src = Math.random() < 0.6
+        ? { kind: 'pink' }
+        : { kind: 'drums', pattern: Math.floor(Math.random() * AudioEngine.DRUM_PATTERNS.length) };
       return {
-        prompt: 'What type of filter is applied to the noise? Compare with the unfiltered reference.',
+        prompt: `What type of filter is applied to ${MATERIAL_NAMES[src.kind]}? Compare with the unfiltered reference.`,
         options: d.types.map((t) => this.labels[t]),
         correct: answerIdx,
         transport: [
-          { label: '▶ Filtered', play: (done) => AudioEngine.playFiltered(type, 1.5, done) },
-          { label: '▶ Reference', play: (done) => AudioEngine.playNoiseEQ({ duration: 1.5, onended: done }) },
+          { label: '▶ Filtered', play: (done) => AudioEngine.playFiltered(type, 1.5, done, src) },
+          { label: '▶ Reference', play: (done) => AudioEngine.playNoiseEQ({ duration: 1.5, src, onended: done }) },
         ],
         explain: `It was a ${this.labels[type]} filter.`,
       };
@@ -159,13 +188,15 @@ const GAMES = {
     makeRound(diff) {
       const d = this.diffs[diff];
       const compIsA = Math.random() < 0.5;
+      // Random groove each round; A and B share it so compression is the only difference
+      const pattern = Math.floor(Math.random() * AudioEngine.DRUM_PATTERNS.length);
       return {
         prompt: 'One loop is compressed, the other is raw. Which one is compressed?',
         options: ['Loop A', 'Loop B'],
         correct: compIsA ? 0 : 1,
         transport: [
-          { label: '▶ Loop A', play: (done) => AudioEngine.playCompression(compIsA, d, 2.4, done) },
-          { label: '▶ Loop B', play: (done) => AudioEngine.playCompression(!compIsA, d, 2.4, done) },
+          { label: '▶ Loop A', play: (done) => AudioEngine.playCompression(compIsA, d, 2.4, done, pattern) },
+          { label: '▶ Loop B', play: (done) => AudioEngine.playCompression(!compIsA, d, 2.4, done, pattern) },
         ],
         explain: `Loop ${compIsA ? 'A' : 'B'} was compressed.`,
       };
@@ -196,12 +227,13 @@ const GAMES = {
       const options = names.map((n) => this.presets.find((p) => p.name === n));
       const answerIdx = Math.floor(Math.random() * options.length);
       const chosen = options[answerIdx];
+      const hitKind = pick(AudioEngine.HIT_KINDS); // clap / rim / tom / pluck
       return {
         prompt: 'How big is the reverb on this sound?',
         options: options.map((p) => p.name),
         correct: answerIdx,
         transport: [
-          { label: '▶ Play Sound', play: (done) => AudioEngine.playReverb(chosen.decay, 2.6, done) },
+          { label: '▶ Play Sound', play: (done) => AudioEngine.playReverb(chosen.decay, 2.6, done, hitKind) },
         ],
         explain: `It was ${chosen.name}.`,
       };
@@ -231,12 +263,17 @@ const GAMES = {
       const options = names.map((n) => this.presets.find((p) => p.name === n));
       const answerIdx = Math.floor(Math.random() * options.length);
       const chosen = options[answerIdx];
+      // Random riff and waveform each round
+      const riffOpts = {
+        riff: Math.floor(Math.random() * AudioEngine.RIFFS.length),
+        wave: Math.random() < 0.5 ? 'sawtooth' : 'square',
+      };
       return {
         prompt: 'How much distortion is on this riff?',
         options: options.map((p) => p.name),
         correct: answerIdx,
         transport: [
-          { label: '▶ Play Riff', play: (done) => AudioEngine.playDistortion(chosen.amount, chosen.out, 2.2, done) },
+          { label: '▶ Play Riff', play: (done) => AudioEngine.playDistortion(chosen.amount, chosen.out, 2.2, done, riffOpts) },
         ],
         explain: `It was ${chosen.name}.`,
       };
