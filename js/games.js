@@ -279,4 +279,133 @@ const GAMES = {
       };
     },
   },
+
+  // ---- Delay Control: identify the delay time ----
+  delay: {
+    id: 'delay',
+    icon: '🕰️',
+    name: 'Delay Control',
+    desc: 'A repeat echoes behind the sound. Estimate the delay time in milliseconds using the dry/delayed comparison.',
+    diffs: [
+      [90, 250, 500],
+      [80, 180, 320, 600],
+      [70, 140, 250, 400, 650],
+      [60, 120, 200, 300, 450, 700],
+    ],
+    makeRound(diff) {
+      const times = this.diffs[diff];
+      const answerIdx = Math.floor(Math.random() * times.length);
+      const ms = times[answerIdx];
+      const hitKind = pick(AudioEngine.HIT_KINDS);
+      return {
+        prompt: 'How long is the delay? Compare the original with the delayed version.',
+        options: times.map((t) => `${t} ms`),
+        correct: answerIdx,
+        transport: [
+          { label: '▶ Original', play: (done) => AudioEngine.playDelay(ms, false, 2.0, done, hitKind) },
+          { label: '▶ With Delay', play: (done) => AudioEngine.playDelay(ms, true, 2.4, done, hitKind) },
+        ],
+        explain: `It was ${ms} ms.`,
+      };
+    },
+  },
+
+  // ---- Feedback Eliminator: identify the pure-tone frequency ----
+  tone: {
+    id: 'tone',
+    icon: '📢',
+    name: 'Feedback Eliminator',
+    desc: 'A pure sine tone rings out at one frequency. Pin down which frequency it is — the skill for killing feedback fast.',
+    allBands: [80, 160, 250, 400, 630, 1000, 1600, 2500, 4000, 6300, 10000],
+    diffs: [
+      { count: 3 },
+      { count: 4 },
+      { count: 6 },
+      { count: 8 },
+    ],
+    makeRound(diff) {
+      const bands = sample(this.allBands, this.diffs[diff].count);
+      const answerIdx = Math.floor(Math.random() * bands.length);
+      const freq = bands[answerIdx];
+      return {
+        prompt: 'Which frequency is the tone ringing at?',
+        options: bands.map(fmtFreq),
+        correct: answerIdx,
+        transport: [
+          { label: '▶ Play Tone', play: (done) => AudioEngine.playTone(freq, 1.6, done) },
+        ],
+        explain: `It was ${fmtFreq(freq)}.`,
+      };
+    },
+  },
+
+  // ---- Stereohead: how wide is the stereo image? ----
+  width: {
+    id: 'width',
+    icon: '🔀',
+    name: 'Stereohead',
+    desc: 'Two sources spread across the stereo field. Judge how wide the image is, from mono to fully wide.',
+    presets: [
+      { name: 'Mono', w: 0 },
+      { name: 'Narrow', w: 0.35 },
+      { name: 'Medium', w: 0.65 },
+      { name: 'Wide', w: 1 },
+    ],
+    diffs: [
+      ['Mono', 'Wide'],
+      ['Mono', 'Medium', 'Wide'],
+      ['Mono', 'Narrow', 'Medium', 'Wide'],
+      ['Narrow', 'Medium', 'Wide'],
+    ],
+    makeRound(diff) {
+      const names = this.diffs[diff];
+      const options = names.map((n) => this.presets.find((p) => p.name === n));
+      const answerIdx = Math.floor(Math.random() * options.length);
+      const chosen = options[answerIdx];
+      return {
+        prompt: 'How wide is the stereo image? (Headphones required.)',
+        options: options.map((p) => p.name),
+        correct: answerIdx,
+        transport: [
+          { label: '▶ Play Sound', play: (done) => AudioEngine.playWidth(chosen.w, 1.6, done) },
+        ],
+        explain: `It was ${chosen.name}.`,
+      };
+    },
+  },
+
+  // ---- Bass Detective: low-frequency EQ boost (50-400 Hz) ----
+  bass: {
+    id: 'bass',
+    icon: '🔈',
+    name: 'Bass Detective',
+    desc: 'A boost hides down in the low end (50–400 Hz). Track down the boosted frequency where mixes get muddy.',
+    allBands: [50, 63, 80, 100, 125, 160, 200, 250, 315, 400],
+    diffs: [
+      { count: 3, gainDb: 12, q: 1.5 },
+      { count: 4, gainDb: 9, q: 2 },
+      { count: 5, gainDb: 6, q: 2.5 },
+      { count: 6, gainDb: 5, q: 3 },
+    ],
+    makeRound(diff) {
+      const d = this.diffs[diff];
+      const bands = sample(this.allBands, d.count);
+      const answerIdx = Math.floor(Math.random() * bands.length);
+      const band = bands[answerIdx];
+      const freq = band * Math.pow(2, (Math.random() - 0.5) * 0.14);
+      const src = Math.random() < 0.5
+        ? { kind: 'pink' }
+        : { kind: 'drums', pattern: Math.floor(Math.random() * AudioEngine.DRUM_PATTERNS.length) };
+      return {
+        prompt: `A +${d.gainDb} dB low-end boost is hiding in ${MATERIAL_NAMES[src.kind]}. Which frequency is it?`,
+        options: bands.map(fmtFreq),
+        correct: answerIdx,
+        transport: [
+          { label: '▶ Boosted', play: (done) => AudioEngine.playNoiseEQ({ freq, gainDb: d.gainDb, q: d.q, duration: 2, src, onended: done }) },
+          { label: '▶ Reference', play: (done) => AudioEngine.playNoiseEQ({ duration: 2, src, onended: done }) },
+        ],
+        explain: `It was ${fmtFreq(band)}.`,
+      };
+    },
+  },
 };

@@ -15,6 +15,10 @@ A SoundGym-style ear training web app for producers and audio engineers. All sou
 | 🥁 **Squash Test** | Spot the compressed drum loop vs the raw one — hear how compression tames transients |
 | 🏛️ **Space Cadet** | Judge the size of a reverb, from a dry room to a cathedral |
 | 🎸 **Dirt Meter** | Gauge how much distortion is on a riff: clean, light, medium, or heavy |
+| 🕰️ **Delay Control** | Estimate the delay time in milliseconds from the echo |
+| 📢 **Feedback Eliminator** | Pin down the frequency of a ringing pure tone |
+| 🔀 **Stereohead** | Judge how wide the stereo image is, from mono to fully wide |
+| 🔈 **Bass Detective** | Find the boosted frequency down in the low end (50–400 Hz) |
 
 ## Progression
 
@@ -23,9 +27,13 @@ A SoundGym-style ear training web app for producers and audio engineers. All sou
 - **Adaptive difficulty** — score 80%+ to get promoted (Easy → Medium → Hard → Pro); each tier shrinks the boost, tightens the pan positions, or narrows the dB gap
 - **Daily streaks** 🔥 and per-game personal bests, saved locally in your browser
 
+## Interface
+
+Each game plays out on a **mixing-console UI** — a segmented frequency/pan/dB scale you click to answer, a SCORE / STAGE / STREAK readout, and an animated studio illustration (speakers, VU meters, faders, engineer) that comes alive while audio plays. Every game has its own accent color.
+
 ## Tech
 
-Vanilla HTML/CSS/JS. Pink noise is generated with the Paul Kellet filter method; EQ boosts, filters, panning, and level changes use native `BiquadFilterNode`, `StereoPannerNode`, and `GainNode` chains. Progress persists in `localStorage`.
+Vanilla HTML/CSS/JS. Pink noise is generated with the Paul Kellet filter method; EQ, filters, panning, level, compression, reverb (convolution), distortion (waveshaping), delay, and stereo width all use native Web Audio nodes. The studio scene is inline SVG animated with CSS. Progress persists in `localStorage`.
 
 ## Also in this repo
 

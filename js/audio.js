@@ -506,9 +506,72 @@ const AudioEngine = (() => {
     return finish(sources, [], onended, duration + 0.2);
   }
 
+  // ---------- Delay (Space & Time) ----------
+  function playDelay(ms, withDelay, duration = 2.4, onended, hitKind = 'pluck') {
+    ensureCtx(); stop();
+    const out = ctx.createGain();
+    out.connect(master);
+    const dry = ctx.createGain();
+    dry.gain.value = 0.95; dry.connect(out);
+    const junction = ctx.createGain();
+    junction.connect(dry);
+    if (withDelay) {
+      const d = ctx.createDelay(1.2);
+      d.delayTime.value = ms / 1000;
+      const fb = ctx.createGain(); fb.gain.value = 0.34;
+      const wet = ctx.createGain(); wet.gain.value = 0.8;
+      junction.connect(d);
+      d.connect(wet); wet.connect(out);
+      d.connect(fb); fb.connect(d);
+    }
+    const sources = [];
+    const t0 = ctx.currentTime + 0.06;
+    const hit = HITS[hitKind] || HITS.pluck;
+    [0, 1.0].forEach((off) => hit(t0 + off, junction, sources));
+    return finish(sources, [], onended, duration);
+  }
+
+  // ---------- Pure tone (Feedback Eliminator) ----------
+  function playTone(freq, duration = 1.6, onended) {
+    ensureCtx(); stop();
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.value = freq;
+    const g = ctx.createGain();
+    envelope(g, duration);
+    o.connect(g); g.connect(master);
+    o.start(); o.stop(ctx.currentTime + duration + 0.05);
+    return finish([o], [], onended, duration + 0.1);
+  }
+
+  // ---------- Stereo width (Stereohead) ----------
+  function playWidth(width, duration = 1.6, onended) {
+    ensureCtx(); stop();
+    const g = ctx.createGain();
+    envelope(g, duration);
+    g.connect(master);
+    const sources = [];
+    // Two decorrelated pink sources panned to +/- width
+    [-1, 1].forEach((side) => {
+      const src = ctx.createBufferSource();
+      src.buffer = getPinkBuffer();
+      src.loop = true;
+      const p = ctx.createStereoPanner();
+      p.pan.value = side * width;
+      const sg = ctx.createGain();
+      sg.gain.value = 0.7;
+      src.connect(p); p.connect(sg); sg.connect(g);
+      src.start(ctx.currentTime, Math.random() * NOISE_SECONDS);
+      src.stop(ctx.currentTime + duration + 0.05);
+      sources.push(src);
+    });
+    return finish(sources, [], onended, duration + 0.1);
+  }
+
   return {
     ensureCtx, stop, playNoiseEQ, playPanned, playLevel, playFiltered, blip,
     playCompression, playReverb, playDistortion, calibrateCompression,
+    playDelay, playTone, playWidth,
     DRUM_PATTERNS, RIFFS, HIT_KINDS,
   };
 })();
