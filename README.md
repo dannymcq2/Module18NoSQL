@@ -12,6 +12,9 @@ A SoundGym-style ear training web app for producers and audio engineers. All sou
 | 🎛️ **Pan Precision** | Pinpoint where a sound sits in the stereo field (headphones recommended) |
 | 🔊 **dB Boss** | Pick the louder of two clips, down to sub-1 dB differences |
 | 🧪 **Filter Lab** | Name the filter type by ear: low-pass, high-pass, band-pass, notch |
+| 🥁 **Squash Test** | Spot the compressed drum loop vs the raw one — hear how compression tames transients |
+| 🏛️ **Space Cadet** | Judge the size of a reverb, from a dry room to a cathedral |
+| 🎸 **Dirt Meter** | Gauge how much distortion is on a riff: clean, light, medium, or heavy |
 
 ## Progression
 

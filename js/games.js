@@ -140,4 +140,103 @@ const GAMES = {
       };
     },
   },
+
+  // ---- Squash Test: which drum loop is compressed? ----
+  comp: {
+    id: 'comp',
+    icon: '🥁',
+    name: 'Squash Test',
+    desc: 'Two drum loops, one run through a compressor. Spot the squashed one — hear how compression tames transients.',
+    diffs: [
+      { threshold: -35, ratio: 12, makeup: 1.8 },
+      { threshold: -30, ratio: 8, makeup: 1.5 },
+      { threshold: -26, ratio: 5, makeup: 1.3 },
+      { threshold: -22, ratio: 3.5, makeup: 1.2 },
+    ],
+    makeRound(diff) {
+      const d = this.diffs[diff];
+      const compIsA = Math.random() < 0.5;
+      return {
+        prompt: 'One loop is compressed, the other is raw. Which one is compressed?',
+        options: ['Loop A', 'Loop B'],
+        correct: compIsA ? 0 : 1,
+        transport: [
+          { label: '▶ Loop A', play: (done) => AudioEngine.playCompression(compIsA, d, 2.4, done) },
+          { label: '▶ Loop B', play: (done) => AudioEngine.playCompression(!compIsA, d, 2.4, done) },
+        ],
+        explain: `Loop ${compIsA ? 'A' : 'B'} was compressed.`,
+      };
+    },
+  },
+
+  // ---- Space Cadet: how big is the reverb? ----
+  reverb: {
+    id: 'reverb',
+    icon: '🏛️',
+    name: 'Space Cadet',
+    desc: 'A percussive hit in a mystery space. Judge the size of the reverb, from a dry room to a cathedral.',
+    presets: [
+      { name: 'Dry', decay: 0 },
+      { name: 'Room', decay: 0.5 },
+      { name: 'Plate', decay: 1.2 },
+      { name: 'Chamber', decay: 2.0 },
+      { name: 'Hall', decay: 3.2 },
+    ],
+    diffs: [
+      ['Dry', 'Hall'],
+      ['Dry', 'Room', 'Hall'],
+      ['Dry', 'Room', 'Chamber', 'Hall'],
+      ['Room', 'Plate', 'Chamber', 'Hall'],
+    ],
+    makeRound(diff) {
+      const names = this.diffs[diff];
+      const options = names.map((n) => this.presets.find((p) => p.name === n));
+      const answerIdx = Math.floor(Math.random() * options.length);
+      const chosen = options[answerIdx];
+      return {
+        prompt: 'How big is the reverb on this sound?',
+        options: options.map((p) => p.name),
+        correct: answerIdx,
+        transport: [
+          { label: '▶ Play Sound', play: (done) => AudioEngine.playReverb(chosen.decay, 2.6, done) },
+        ],
+        explain: `It was ${chosen.name}.`,
+      };
+    },
+  },
+
+  // ---- Dirt Meter: how much distortion? ----
+  dist: {
+    id: 'dist',
+    icon: '🎸',
+    name: 'Dirt Meter',
+    desc: 'A synth riff with mystery drive. Gauge how much distortion is cooking — clean, crunchy, or fully fried.',
+    presets: [
+      { name: 'Clean', amount: 0, out: 0.5 },
+      { name: 'Light', amount: 8, out: 0.42 },
+      { name: 'Medium', amount: 25, out: 0.32 },
+      { name: 'Heavy', amount: 60, out: 0.24 },
+    ],
+    diffs: [
+      ['Clean', 'Heavy'],
+      ['Clean', 'Light', 'Heavy'],
+      ['Clean', 'Light', 'Medium', 'Heavy'],
+      ['Light', 'Medium', 'Heavy'],
+    ],
+    makeRound(diff) {
+      const names = this.diffs[diff];
+      const options = names.map((n) => this.presets.find((p) => p.name === n));
+      const answerIdx = Math.floor(Math.random() * options.length);
+      const chosen = options[answerIdx];
+      return {
+        prompt: 'How much distortion is on this riff?',
+        options: options.map((p) => p.name),
+        correct: answerIdx,
+        transport: [
+          { label: '▶ Play Riff', play: (done) => AudioEngine.playDistortion(chosen.amount, chosen.out, 2.2, done) },
+        ],
+        explain: `It was ${chosen.name}.`,
+      };
+    },
+  },
 };

@@ -181,5 +181,193 @@ const AudioEngine = (() => {
     }
   }
 
-  return { ensureCtx, stop, playNoiseEQ, playPanned, playLevel, playFiltered, blip };
+  // ---------- Shared scheduling helpers for the "musical" games ----------
+
+  // Register a set of scheduled sources + timers as the current playback so
+  // stop() can cancel them all cleanly.
+  function finish(sources, timers, onended, endsAfter) {
+    const t = setTimeout(() => { if (onended) onended(); }, endsAfter * 1000);
+    timers.push(t);
+    current = {
+      stop: () => {
+        sources.forEach((s) => { try { s.stop(); } catch (e) {} });
+        timers.forEach(clearTimeout);
+      },
+    };
+    return current;
+  }
+
+  // One-shot percussive voices, scheduled at absolute time t into a destination.
+  function kick(dest, t, vel, sources) {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.frequency.setValueAtTime(150, t);
+    o.frequency.exponentialRampToValueAtTime(50, t + 0.12);
+    g.gain.setValueAtTime(vel, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+    o.connect(g); g.connect(dest);
+    o.start(t); o.stop(t + 0.32);
+    sources.push(o);
+  }
+  function snare(dest, t, vel, sources) {
+    const s = ctx.createBufferSource();
+    s.buffer = getPinkBuffer();
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass'; hp.frequency.value = 1400;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(vel, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+    s.connect(hp); hp.connect(g); g.connect(dest);
+    s.start(t, Math.random()); s.stop(t + 0.2);
+    sources.push(s);
+  }
+  function hat(dest, t, vel, sources) {
+    const s = ctx.createBufferSource();
+    s.buffer = getPinkBuffer();
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass'; hp.frequency.value = 7000;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(vel, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+    s.connect(hp); hp.connect(g); g.connect(dest);
+    s.start(t, Math.random()); s.stop(t + 0.08);
+    sources.push(s);
+  }
+
+  // Schedule one 2s bar of a dynamic drum pattern (accents + ghost notes give
+  // the compressor something to grab).
+  function scheduleDrumBar(dest, t0, sources) {
+    const step = 0.125; // 16th note at 120 BPM
+    kick(dest, t0 + step * 0, 1.0, sources);
+    kick(dest, t0 + step * 3, 0.3, sources);   // ghost
+    kick(dest, t0 + step * 6, 0.9, sources);
+    kick(dest, t0 + step * 10, 1.0, sources);
+    snare(dest, t0 + step * 4, 0.9, sources);
+    snare(dest, t0 + step * 7, 0.25, sources); // ghost
+    snare(dest, t0 + step * 12, 1.0, sources);
+    for (let i = 0; i < 16; i += 2) {
+      hat(dest, t0 + step * i, i % 4 === 0 ? 0.35 : 0.14, sources);
+    }
+  }
+
+  // ---- Compression: same drum loop, with or without a compressor + makeup ----
+  function playCompression(compressed, settings, duration = 2.4, onended) {
+    ensureCtx(); stop();
+    const out = ctx.createGain();
+    out.connect(master);
+    let input = out;
+    if (compressed) {
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = settings.threshold;
+      comp.ratio.value = settings.ratio;
+      comp.knee.value = 6;
+      comp.attack.value = 0.003;
+      comp.release.value = 0.15;
+      const makeup = ctx.createGain();
+      makeup.gain.value = settings.makeup;
+      comp.connect(makeup); makeup.connect(out);
+      input = comp;
+    }
+    const sources = [];
+    const t0 = ctx.currentTime + 0.06;
+    for (let start = t0; start < t0 + duration; start += 2.0) {
+      scheduleDrumBar(input, start, sources);
+    }
+    return finish(sources, [], onended, duration + 0.4);
+  }
+
+  // ---- Reverb: percussive claps through a synthesized impulse response ----
+  function makeReverbIR(decay) {
+    const len = Math.max(1, Math.floor(ctx.sampleRate * decay));
+    const ir = ctx.createBuffer(2, len, ctx.sampleRate);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = ir.getChannelData(ch);
+      for (let i = 0; i < len; i++) {
+        d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.5);
+      }
+    }
+    return ir;
+  }
+  function playReverb(decay, duration = 2.6, onended) {
+    ensureCtx(); stop();
+    const out = ctx.createGain();
+    out.connect(master);
+    const dry = ctx.createGain();
+    dry.gain.value = 0.9; dry.connect(out);
+    let conv = null;
+    if (decay > 0) {
+      conv = ctx.createConvolver();
+      conv.buffer = makeReverbIR(decay);
+      const wet = ctx.createGain();
+      wet.gain.value = 0.9;
+      conv.connect(wet); wet.connect(out);
+    }
+    const sources = [];
+    const t0 = ctx.currentTime + 0.06;
+    [0, 0.7, 1.4].forEach((off) => {
+      const t = t0 + off;
+      const s = ctx.createBufferSource();
+      s.buffer = getPinkBuffer();
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass'; bp.frequency.value = 1800; bp.Q.value = 1;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.95, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+      s.connect(bp); bp.connect(g);
+      g.connect(dry);
+      if (conv) g.connect(conv);
+      s.start(t, Math.random()); s.stop(t + 0.1);
+      sources.push(s);
+    });
+    return finish(sources, [], onended, Math.min(4, 1.6 + decay));
+  }
+
+  // ---- Distortion: a sawtooth riff through a waveshaper at varying drive ----
+  function makeDistortionCurve(amount) {
+    const n = 2048;
+    const curve = new Float32Array(n);
+    const deg = Math.PI / 180;
+    for (let i = 0; i < n; i++) {
+      const x = (i * 2) / n - 1;
+      curve[i] = ((3 + amount) * x * 20 * deg) / (Math.PI + amount * Math.abs(x));
+    }
+    return curve;
+  }
+  function playDistortion(amount, outGainVal, duration = 2.2, onended) {
+    ensureCtx(); stop();
+    const out = ctx.createGain();
+    out.gain.value = outGainVal;
+    out.connect(master);
+    let input = out;
+    if (amount > 0) {
+      const ws = ctx.createWaveShaper();
+      ws.curve = makeDistortionCurve(amount);
+      ws.oversample = '4x';
+      ws.connect(out);
+      input = ws;
+    }
+    const sources = [];
+    const t0 = ctx.currentTime + 0.06;
+    const notes = [110, 110, 146.83, 110]; // A2 riff
+    const noteLen = duration / notes.length;
+    notes.forEach((f, i) => {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth'; o.frequency.value = f;
+      const g = ctx.createGain();
+      const t = t0 + i * noteLen;
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.5, t + 0.02);
+      g.gain.setValueAtTime(0.5, t + noteLen - 0.05);
+      g.gain.linearRampToValueAtTime(0, t + noteLen);
+      o.connect(g); g.connect(input);
+      o.start(t); o.stop(t + noteLen + 0.02);
+      sources.push(o);
+    });
+    return finish(sources, [], onended, duration + 0.2);
+  }
+
+  return {
+    ensureCtx, stop, playNoiseEQ, playPanned, playLevel, playFiltered, blip,
+    playCompression, playReverb, playDistortion,
+  };
 })();
