@@ -34,6 +34,7 @@ const GAMES = {
     id: 'eq',
     icon: '🎚️',
     name: 'EQ Detective',
+    category: 'Equalization',
     answerType: 'freq',
     desc: 'One frequency band boosted in noise or a drum loop. Identify which band — the core skill for mixing and mastering.',
     allBands: [63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000],
@@ -74,6 +75,7 @@ const GAMES = {
     id: 'pan',
     icon: '🎛️',
     name: 'Pan Precision',
+    category: 'Space & Time',
     answerType: 'pan',
     desc: 'A sound placed somewhere in the stereo field. Pinpoint its position — train your spatial hearing.',
     diffs: [
@@ -109,6 +111,7 @@ const GAMES = {
     id: 'level',
     icon: '🔊',
     name: 'dB Boss',
+    category: 'Dynamics',
     answerType: 'db',
     desc: 'Two clips, one slightly louder. Pick the louder one — level judgment is the foundation of gain staging.',
     diffs: [
@@ -148,6 +151,7 @@ const GAMES = {
     id: 'filter',
     icon: '🧪',
     name: 'Filter Lab',
+    category: 'Equalization',
     answerType: 'category',
     desc: 'A mystery filter over noise or drums. Name the filter type — learn the sound of every curve.',
     diffs: [
@@ -182,6 +186,7 @@ const GAMES = {
     id: 'comp',
     icon: '🥁',
     name: 'Squash Test',
+    category: 'Dynamics',
     answerType: 'category',
     desc: 'Two drum loops, one run through a compressor. Spot the squashed one — hear how compression tames transients.',
     diffs: [
@@ -213,6 +218,7 @@ const GAMES = {
     id: 'reverb',
     icon: '🏛️',
     name: 'Space Cadet',
+    category: 'Space & Time',
     answerType: 'category',
     desc: 'A percussive hit in a mystery space. Judge the size of the reverb, from a dry room to a cathedral.',
     presets: [
@@ -251,6 +257,7 @@ const GAMES = {
     id: 'dist',
     icon: '🎸',
     name: 'Dirt Meter',
+    category: 'Distortion',
     answerType: 'category',
     desc: 'A synth riff with mystery drive. Gauge how much distortion is cooking — clean, crunchy, or fully fried.',
     presets: [
@@ -292,6 +299,7 @@ const GAMES = {
     id: 'delay',
     icon: '🕰️',
     name: 'Delay Control',
+    category: 'Space & Time',
     answerType: 'time',
     desc: 'A repeat echoes behind the sound. Estimate the delay time in milliseconds using the dry/delayed comparison.',
     diffs: [
@@ -323,6 +331,7 @@ const GAMES = {
     id: 'tone',
     icon: '📢',
     name: 'Feedback Eliminator',
+    category: 'Equalization',
     answerType: 'freq',
     desc: 'A pure sine tone rings out at one frequency. Pin down which frequency it is — the skill for killing feedback fast.',
     allBands: [80, 160, 250, 400, 630, 1000, 1600, 2500, 4000, 6300, 10000],
@@ -353,6 +362,7 @@ const GAMES = {
     id: 'width',
     icon: '🔀',
     name: 'Stereohead',
+    category: 'Space & Time',
     answerType: 'pan',
     desc: 'Two sources spread across the stereo field. Judge how wide the image is, from mono to fully wide.',
     presets: [
@@ -389,6 +399,7 @@ const GAMES = {
     id: 'bass',
     icon: '🔈',
     name: 'Bass Detective',
+    category: 'Equalization',
     answerType: 'freq',
     desc: 'A boost hides down in the low end (50–400 Hz). Track down the boosted frequency where mixes get muddy.',
     allBands: [50, 63, 80, 100, 125, 160, 200, 250, 315, 400],
@@ -426,6 +437,7 @@ const GAMES = {
     icon: '🎚️',
     name: 'Balance Memory',
     desc: 'Memorize a 4-track mix, then recreate the balance on the faders from memory. Train your relative-level recall.',
+    category: 'Dynamics',
     answerType: 'db',
     trackNames: ['Kick', 'Bass', 'Pad', 'Hats'],
     diffs: [
@@ -456,6 +468,7 @@ const GAMES = {
     icon: '🪞',
     name: 'EQ Mirror',
     desc: 'Drag the knob to match a hidden EQ boost by ear — a continuous, precision version of EQ Detective.',
+    category: 'Equalization',
     answerType: 'freq',
     diffs: [
       { gainDb: 10, tolerancePct: 18, range: [150, 5000] },
@@ -490,6 +503,7 @@ const GAMES = {
     icon: '🎛️',
     name: 'Compressionist',
     desc: 'Drag the Amount knob to match a hidden compression setting on a drum loop — precision dynamics matching.',
+    category: 'Dynamics',
     answerType: 'db',
     diffs: [
       { tolerance: 18 },

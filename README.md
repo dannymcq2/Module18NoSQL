@@ -30,6 +30,12 @@ A SoundGym-style ear training web app for producers and audio engineers. All sou
 - **Adaptive difficulty** — score 80%+ to get promoted (Easy → Medium → Hard → Pro); each tier shrinks the boost, tightens the pan positions, or narrows the dB gap
 - **Daily streaks** 🔥 and per-game personal bests, saved locally in your browser
 
+## Navigation
+
+The home screen groups all 14 games into **filterable categories** — All, Equalization, Dynamics, Space & Time, Distortion — via chips above the grid, so the list stays scannable as it grows.
+
+Every round supports **keyboard shortcuts**: number keys pick an answer segment, <kbd>Space</kbd> replays the last-played sound, and <kbd>Enter</kbd> submits a knob/fader round. A hint line under the prompt shows the active shortcuts for that round.
+
 ## Interface
 
 Each game plays out on a **mixing-console UI**, in one of three interaction styles depending on the skill being trained:

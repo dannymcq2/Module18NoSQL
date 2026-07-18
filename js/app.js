@@ -61,10 +61,31 @@ function renderHeader() {
 }
 
 // ---------- Home ----------
+const CATEGORIES = ['All', 'Equalization', 'Dynamics', 'Space & Time', 'Distortion'];
+let activeCategory = 'All';
+
+function renderCatFilters() {
+  const wrap = $('catFilters');
+  wrap.innerHTML = '';
+  CATEGORIES.forEach((cat) => {
+    const count = cat === 'All'
+      ? Object.keys(GAMES).length
+      : Object.values(GAMES).filter((g) => g.category === cat).length;
+    if (count === 0) return;
+    const chip = document.createElement('button');
+    chip.className = 'cat-chip' + (cat === activeCategory ? ' active' : '');
+    chip.innerHTML = `${cat}<span class="count">${count}</span>`;
+    chip.addEventListener('click', () => { activeCategory = cat; renderHome(); });
+    wrap.appendChild(chip);
+  });
+}
+
 function renderHome() {
+  renderCatFilters();
   const cards = $('gameCards');
   cards.innerHTML = '';
-  Object.values(GAMES).forEach((g) => {
+  const games = Object.values(GAMES).filter((g) => activeCategory === 'All' || g.category === activeCategory);
+  games.forEach((g) => {
     const lvl = Profile.data.gameLevel[g.id] || 0;
     const best = Profile.data.best[g.id];
     const card = document.createElement('div');
@@ -174,7 +195,7 @@ const TYPE_HOVER_VAR = {
 function buildTransport(s) {
   const tp = $('transport');
   tp.innerHTML = '';
-  (s.current.transport || []).forEach((t) => {
+  (s.current.transport || []).forEach((t, idx) => {
     const b = document.createElement('button');
     b.className = 'play-btn';
     b.innerHTML = `<span class="eqviz"><i></i><i></i><i></i><i></i></span><span>${t.label.replace('▶ ', '')}</span>`;
@@ -182,10 +203,12 @@ function buildTransport(s) {
       tp.querySelectorAll('.play-btn').forEach((x) => x.classList.remove('playing'));
       b.classList.add('playing');
       setLive(true);
+      s.lastTransportIdx = idx;
       t.play(() => { b.classList.remove('playing'); setLive(false); });
     });
     tp.appendChild(b);
   });
+  s.lastTransportIdx = 0;
   return tp;
 }
 
@@ -197,11 +220,12 @@ function renderChoiceRound(s) {
   s.current.options.forEach((opt, i) => {
     const seg = document.createElement('button');
     seg.className = 'seg';
-    seg.innerHTML = `<span class="seg-label">${opt}</span>`;
+    seg.innerHTML = `<span class="seg-key">${i + 1}</span><span class="seg-label">${opt}</span>`;
     seg.addEventListener('click', () => answer(i, seg));
     disp.appendChild(seg);
   });
   buildTransport(s);
+  $('kbdHint').innerHTML = `<kbd>1</kbd>–<kbd>${s.current.options.length}</kbd> to answer · <kbd>Space</kbd> to replay`;
 }
 
 function renderFaderRound(s) {
@@ -252,6 +276,7 @@ function renderFaderRound(s) {
   });
   tp.appendChild(refBtn); tp.appendChild(mixBtn);
   addSubmitButton(tp, submitTune);
+  $('kbdHint').innerHTML = `<kbd>Space</kbd> to replay · <kbd>Enter</kbd> to submit`;
 }
 
 // Rotary knob control. Drag vertically (up = increase) or use arrow keys
@@ -337,6 +362,7 @@ function renderKnobRound(s) {
   });
   tp.appendChild(targetBtn); tp.appendChild(yoursBtn);
   addSubmitButton(tp, submitTune);
+  $('kbdHint').innerHTML = `<kbd>Space</kbd> to replay · <kbd>Enter</kbd> to submit`;
 }
 
 function addSubmitButton(tp, handler) {
@@ -528,3 +554,25 @@ $('homeBtn').addEventListener('click', () => { renderHome(); show('home'); });
 $('quitBtn').addEventListener('click', () => { session = null; renderHome(); show('home'); });
 $('backBtn').addEventListener('click', () => { renderHome(); show('home'); });
 $('againBtn').addEventListener('click', () => startSession(session.game.id));
+
+// Keyboard shortcuts during a round: 1-9 pick an answer segment, Space
+// replays the last-played transport button, Enter submits a knob/fader
+// round. Deferred to native behavior when a button/input/knob already has
+// focus, so Tab-based keyboard navigation still works normally.
+document.addEventListener('keydown', (e) => {
+  if (!session || !$('game').classList.contains('active')) return;
+  if (e.target.closest && e.target.closest('button, input, .knob')) return;
+
+  if (e.key >= '1' && e.key <= '9') {
+    const segs = document.querySelectorAll('#display .seg');
+    const seg = segs[Number(e.key) - 1];
+    if (seg && !seg.disabled) { e.preventDefault(); seg.click(); }
+  } else if (e.code === 'Space') {
+    const buttons = document.querySelectorAll('#transport .play-btn');
+    const btn = buttons[Math.min(session.lastTransportIdx || 0, buttons.length - 1)];
+    if (btn) { e.preventDefault(); btn.click(); }
+  } else if (e.key === 'Enter') {
+    const submitBtn = $('submitBtn');
+    if (submitBtn && !submitBtn.disabled) { e.preventDefault(); submitBtn.click(); }
+  }
+});
