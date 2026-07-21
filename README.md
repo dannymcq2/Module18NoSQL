@@ -1,0 +1,55 @@
+# 🎧 EarGym — Train Your Ears
+
+A SoundGym-style ear training web app for producers and audio engineers. All sound is synthesized in the browser with the Web Audio API — no audio files, no build step, works offline.
+
+**[Open `index.html` to play](index.html)** (or serve the folder with any static server).
+
+## Games
+
+| Game | Skill |
+|------|-------|
+| 🎚️ **EQ Detective** | Identify which frequency band is boosted in pink noise — the core mixing/mastering skill |
+| 🎛️ **Pan Precision** | Pinpoint where a sound sits in the stereo field (headphones recommended) |
+| 🔊 **dB Boss** | Pick the louder of two clips, down to sub-1 dB differences |
+| 🧪 **Filter Lab** | Name the filter type by ear: low-pass, high-pass, band-pass, notch |
+| 🥁 **Squash Test** | Spot the compressed drum loop vs the raw one — hear how compression tames transients |
+| 🏛️ **Space Cadet** | Judge the size of a reverb, from a dry room to a cathedral |
+| 🎸 **Dirt Meter** | Gauge how much distortion is on a riff: clean, light, medium, or heavy |
+| 🕰️ **Delay Control** | Estimate the delay time in milliseconds from the echo |
+| 📢 **Feedback Eliminator** | Pin down the frequency of a ringing pure tone |
+| 🔀 **Stereohead** | Judge how wide the stereo image is, from mono to fully wide |
+| 🔈 **Bass Detective** | Find the boosted frequency down in the low end (50–400 Hz) |
+| 🎚️ **Balance Memory** | Memorize a 4-track mix, then recreate it by dragging faders |
+| 🪞 **EQ Mirror** | Drag a frequency knob to match a hidden EQ boost, A/B'd against your own attempt |
+| 🎛️ **Compressionist** | Drag an Amount knob to match hidden compression by ear |
+
+## Progression
+
+- **10-round workouts** with scoring, combo streak bonuses, and difficulty multipliers
+- **XP and levels** — earn XP every workout, level up your profile
+- **Adaptive difficulty** — score 80%+ to get promoted (Easy → Medium → Hard → Pro); each tier shrinks the boost, tightens the pan positions, or narrows the dB gap
+- **Daily streaks** 🔥 and per-game personal bests, saved locally in your browser
+
+## Navigation
+
+The home screen groups all 14 games into **filterable categories** — All, Equalization, Dynamics, Space & Time, Distortion — via chips above the grid, so the list stays scannable as it grows.
+
+Every round supports **keyboard shortcuts**: number keys pick an answer segment, <kbd>Space</kbd> replays the last-played sound, and <kbd>Enter</kbd> submits a knob/fader round. A hint line under the prompt shows the active shortcuts for that round.
+
+## Interface
+
+Each game plays out on a **mixing-console UI**, in one of three interaction styles depending on the skill being trained:
+- **Segmented scale** (most games) — click a frequency/pan/dB option to answer. Hover color is semantic and consistent across games: frequency options always glow cyan, pan/width options green, dB/level options amber, delay-time options violet, and qualitative options (filter type, reverb size, distortion amount) rose — so the color itself tells you what kind of judgment you're making.
+- **Vertical faders** (Balance Memory) — drag real fader tracks to recreate a memorized multi-track mix.
+- **Rotary knob** (EQ Mirror, Compressionist) — drag up/down or use arrow keys to dial in a continuous value, A/B your attempt against the target, and submit when it matches.
+
+All three sit above a SCORE / STAGE / STREAK readout and an animated studio illustration (speakers, VU meters, faders, engineer) that comes alive while audio plays. Every game has its own accent color for its console and studio scene.
+
+## Tech
+
+Vanilla HTML/CSS/JS. Pink noise is generated with the Paul Kellet filter method; EQ, filters, panning, level, compression, reverb (convolution), distortion (waveshaping), delay, and stereo width all use native Web Audio nodes. Balance Memory's 4 stems (kick/bass/pad/hats) are pre-rendered once via `OfflineAudioContext` into loopable buffers. The studio scene is inline SVG animated with CSS. Progress persists in `localStorage`.
+
+## Also in this repo
+
+- [`beatvisual/`](beatvisual/) — circular audio visualizer for your own beat files
+- `module18/`, `module20hw/` — coursework projects

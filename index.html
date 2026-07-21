@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EarGym — Train Your Ears</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="logo" id="homeBtn">🎧 EarGym</div>
+    <div class="profile">
+      <div class="level-badge" id="levelBadge">Lv 1</div>
+      <div class="xp-wrap">
+        <div class="xp-bar"><div class="xp-fill" id="xpFill"></div></div>
+        <div class="xp-label" id="xpLabel">0 XP</div>
+      </div>
+      <div class="streak" id="streakBadge" title="Daily streak">🔥 0</div>
+    </div>
+  </header>
+
+  <main id="app">
+    <!-- Home / dashboard -->
+    <section id="home" class="screen active">
+      <h1>Daily Workout</h1>
+      <p class="subtitle">Sharpen your ears with short, focused games. Play daily to keep your streak alive.</p>
+      <div class="cat-filters" id="catFilters"></div>
+      <div class="cards" id="gameCards"></div>
+
+      <h2>Your Stats</h2>
+      <div class="stats" id="statsRow"></div>
+    </section>
+
+    <!-- Game screen: mixing-console style -->
+    <section id="game" class="screen">
+      <div class="game-topline">
+        <button class="ghost small" id="quitBtn">← Quit</button>
+        <div class="game-title" id="gameTitle"></div>
+        <span class="diff-tag" id="diffVal">Easy</span>
+      </div>
+
+      <div class="console">
+        <div class="console-head">
+          <div class="ch-cell left">
+            <div class="ch-num" id="scoreVal">0</div>
+            <div class="ch-lbl">SCORE</div>
+          </div>
+          <div class="ch-cell center">
+            <div class="ch-num" id="roundInd">1 / 10</div>
+            <div class="ch-lbl">STAGE</div>
+          </div>
+          <div class="ch-cell right">
+            <div class="ch-num combo"><span id="comboVal">0</span><span class="combo-flame">🔥</span></div>
+            <div class="ch-lbl">STREAK</div>
+          </div>
+        </div>
+
+        <!-- Segmented "scale" display — the answer options live here -->
+        <div class="console-display" id="display"></div>
+
+        <div class="console-foot">
+          <div class="foot-dots" id="roundDots"></div>
+          <div class="transport" id="transport"></div>
+          <div class="foot-meter" id="footMeter"><i></i><i></i><i></i><i></i><i></i></div>
+        </div>
+      </div>
+
+      <p class="prompt" id="gamePrompt"></p>
+      <div class="feedback" id="feedback"></div>
+      <div class="kbd-hint" id="kbdHint"></div>
+
+      <!-- Animated studio illustration -->
+      <div class="studio-wrap">
+        <svg id="studio" class="studio" viewBox="0 0 800 320" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <!-- Left speaker -->
+          <g class="speaker">
+            <rect x="58" y="150" width="82" height="150" rx="12" fill="#141a28" stroke="#2b3550" stroke-width="2"/>
+            <circle cx="99" cy="198" r="30" fill="#0d121d" stroke="#2b3550" stroke-width="2"/>
+            <circle class="cone" cx="99" cy="198" r="18" fill="var(--game-accent)"/>
+            <circle cx="99" cy="258" r="16" fill="#0d121d" stroke="#2b3550" stroke-width="2"/>
+            <circle class="cone" cx="99" cy="258" r="8" fill="var(--game-accent)"/>
+          </g>
+          <!-- Right speaker -->
+          <g class="speaker" style="animation-delay:.15s">
+            <rect x="660" y="150" width="82" height="150" rx="12" fill="#141a28" stroke="#2b3550" stroke-width="2"/>
+            <circle cx="701" cy="198" r="30" fill="#0d121d" stroke="#2b3550" stroke-width="2"/>
+            <circle class="cone" cx="701" cy="198" r="18" fill="var(--game-accent)"/>
+            <circle cx="701" cy="258" r="16" fill="#0d121d" stroke="#2b3550" stroke-width="2"/>
+            <circle class="cone" cx="701" cy="258" r="8" fill="var(--game-accent)"/>
+          </g>
+
+          <!-- Engineer (drawn behind the desk) -->
+          <g class="engineer">
+            <rect x="366" y="150" width="68" height="120" rx="26" fill="#3c465f"/>
+            <circle cx="400" cy="128" r="27" fill="#525d79"/>
+          </g>
+
+          <!-- Rack shelf with VU meters -->
+          <rect x="250" y="168" width="300" height="34" rx="7" fill="#12172200" />
+          <g class="vu">
+            <rect x="286" y="172" width="46" height="26" rx="4" fill="#0d121d" stroke="#2b3550" stroke-width="1.5"/>
+            <line class="needle" x1="309" y1="196" x2="309" y2="178" stroke="var(--game-accent)" stroke-width="2.5" stroke-linecap="round"/>
+          </g>
+          <g class="vu" style="animation-delay:.2s">
+            <rect x="468" y="172" width="46" height="26" rx="4" fill="#0d121d" stroke="#2b3550" stroke-width="1.5"/>
+            <line class="needle" x1="491" y1="196" x2="491" y2="178" stroke="var(--game-accent)" stroke-width="2.5" stroke-linecap="round"/>
+          </g>
+
+          <!-- Mixing desk surface -->
+          <rect x="236" y="206" width="328" height="104" rx="14" fill="#161b27" stroke="#2b3550" stroke-width="2"/>
+          <rect x="228" y="198" width="344" height="16" rx="8" fill="#1c2333" stroke="#2b3550" stroke-width="1.5"/>
+          <!-- Knobs (left cluster) -->
+          <g class="knobs">
+            <circle cx="270" cy="240" r="9" fill="#0f1420" stroke="var(--game-accent)" stroke-width="2"/>
+            <circle cx="300" cy="240" r="9" fill="#0f1420" stroke="var(--game-accent)" stroke-width="2"/>
+            <circle cx="330" cy="240" r="9" fill="#0f1420" stroke="var(--game-accent)" stroke-width="2"/>
+            <circle cx="270" cy="272" r="9" fill="#0f1420" stroke="#2b3550" stroke-width="2"/>
+            <circle cx="300" cy="272" r="9" fill="#0f1420" stroke="#2b3550" stroke-width="2"/>
+            <circle cx="330" cy="272" r="9" fill="#0f1420" stroke="#2b3550" stroke-width="2"/>
+          </g>
+          <!-- Faders (right cluster) -->
+          <g class="faders">
+            <line x1="474" y1="228" x2="474" y2="288" stroke="#0f1420" stroke-width="4" stroke-linecap="round"/>
+            <line x1="500" y1="228" x2="500" y2="288" stroke="#0f1420" stroke-width="4" stroke-linecap="round"/>
+            <line x1="526" y1="228" x2="526" y2="288" stroke="#0f1420" stroke-width="4" stroke-linecap="round"/>
+            <rect class="cap" x="467" y="246" width="14" height="9" rx="3" fill="var(--game-accent)"/>
+            <rect class="cap" x="493" y="262" width="14" height="9" rx="3" fill="var(--game-accent)"/>
+            <rect class="cap" x="519" y="238" width="14" height="9" rx="3" fill="var(--game-accent)"/>
+          </g>
+        </svg>
+      </div>
+    </section>
+
+    <!-- Results screen -->
+    <section id="results" class="screen">
+      <h1 id="resultTitle">Workout Complete!</h1>
+      <div class="result-card">
+        <div class="big-score" id="finalScore"></div>
+        <div class="result-lines" id="resultLines"></div>
+      </div>
+      <div class="result-actions">
+        <button class="primary" id="againBtn">Play Again</button>
+        <button class="ghost" id="backBtn">Back to Gym</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/audio.js"></script>
+  <script src="js/games.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
